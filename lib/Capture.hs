@@ -1,8 +1,9 @@
-module NXT.Capture (initCapture, terminateCapture, getLastRobotPosition) where
+module NXT.Capture (initCapture, terminateCapture, getLastRobotPosition, waitForRobotPosition, waitForRobotPosition') where
 
 import Control.Exception
 import Control.Monad.State
 import qualified Data.ByteString.Lazy.Char8 as C
+import Data.Time.Clock.POSIX
 import System.IO
 import System.IO.Error
 import System.Process
@@ -14,7 +15,7 @@ import NXT.NXTTypes
 
 -- TODO Move to configuration file
 enableCapture :: Bool
-enableCapture = False
+enableCapture = True
 
 initCapture :: NXT ()
 initCapture = do
@@ -57,7 +58,30 @@ getLastRobotPosition = do
               modify (\s -> s { capture = Just (Capture captureOut capturePid currentBuffer) })
               if null positions
                 then return Nothing
-                else return $ Just $ head . head $ positions -- positions are stored as lists in the reverse order so (head . head) is the last position from capture process
+                else do
+                  let Robot x y d ct pt _ = head . head $ positions -- positions are stored as lists in the reverse order so (head . head) is the last position from capture process
+                  currentTime <- io $ getPOSIXTime
+                  return $ Just $ Robot x y d ct pt currentTime
+
+waitForRobotPosition :: NXT ()
+waitForRobotPosition = do
+  _ <- waitForRobotPosition' (-1)
+  return ()
+
+waitForRobotPosition' :: Int -> NXT Bool
+waitForRobotPosition' timeout = do
+  c <- gets capture
+  case c of
+    Nothing                                -> fail "No capture process"
+    Just (Capture captureOut capturePid _) -> do
+      processRunning <- io $ getProcessExitCode capturePid
+      case processRunning of
+        Just _ -> captureProcessExited
+        _      -> do
+          ret <- io $ tryJust (guard . isEOFError) $ hWaitForInput captureOut timeout
+          case ret of
+            Left _               -> captureProcessExited -- EOF
+            Right inputAvailable -> return inputAvailable
 
 captureProcessExited :: NXT a
 captureProcessExited = do
