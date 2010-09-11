@@ -4,7 +4,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 
-// TODO This works currently only on Linux
+// TODO: This works currently only on Linux
 
 #ifdef LINUX
 #include <bluetooth/bluetooth.h>

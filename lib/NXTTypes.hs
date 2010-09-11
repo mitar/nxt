@@ -7,8 +7,6 @@ import Data.Time.Clock.POSIX
 import Data.Word
 import System.IO
 
-import NXT.CaptureTypes
-
 -- Described in Lego Mindstorms NXT Bluetooth Developer Kit:
 --  Appendix 1 - Communication protocol
 --  Appendix 2 - Direct commands
@@ -17,7 +15,7 @@ import NXT.CaptureTypes
 --  Appendix 7 - Ultrasonic sensor I2C communication protocol
 
 type NXT = StateT NXTState IO -- NXT monad
-data NXTState = NXTState { nxthandle :: Handle, address :: (Maybe BTAddress), modules :: [(ModuleName, ModuleInfo)], sleeptime :: Duration, lastkeepalive :: POSIXTime, capture :: Maybe Capture } -- NXT monad has a handle of an opened serial port, some module infos, sleep time limit in seconds, last time keep alive has been sent and capture handles
+data NXTState = NXTState { nxthandle :: Handle, address :: (Maybe BTAddress), modules :: [(ModuleName, ModuleInfo)], sleeptime :: Duration, lastkeepalive :: POSIXTime } -- NXT monad has a handle of an opened serial port, some module infos, sleep time limit in seconds, last time keep alive has been sent
 
 -- The format of version is major.minor: (printf "%d.%02d" major minor)
 type Major = Int

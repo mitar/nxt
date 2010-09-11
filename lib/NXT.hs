@@ -29,28 +29,28 @@ import NXT.NXTTypes
 --  Appendix 1 - Communication protocol
 --  Appendix 2 - Direct commands
 
--- TODO All functions which requests ModuleInfo could populate module ID cache along the way
+-- TODO: All functions which requests ModuleInfo could populate module ID cache along the way
 
 -- Foreign function call for C function which initialize serial port device on POSIX systems
 foreign import ccall unsafe "initserial.h" initSerialPort :: Fd -> IO CInt
 
--- TODO Move to configuration file
+-- TODO: Move to configuration file
 device :: FilePath -- serial port device file
 --device = "/dev/tty.NatriX-DevB-1"
 device = "/dev/rfcomm0"
 
--- TODO Move to configuration file
+-- TODO: Move to configuration file
 debug :: Bool
 debug = False
 
-io :: MonadIO m => IO a -> m a
+io :: (MonadIO m) => IO a -> m a
 io = liftIO
 
 -- Opens and intializes serial port, installs signal handler so that ctrl-c closes the program gracefully
 initialize :: IO NXTState
 initialize = do
   let signals = foldl (flip addSignal) emptySignalSet [virtualTimerExpired]
-  blockSignals signals -- we have to block signals from interrupting openFd system call
+  blockSignals signals -- we have to block signals from interrupting openFd system call (fixed in GHC versions after 6.12.1)
   fd <- openFd device ReadWrite Nothing OpenFileFlags { append = False, noctty = True, exclusive = False, nonBlock = True, trunc = False }
   unblockSignals signals
   throwErrnoIfMinus1_ "initSerialPort" $ initSerialPort fd
@@ -59,7 +59,7 @@ initialize = do
   mainthread <- myThreadId
   _ <- installHandler softwareTermination (Catch (throwTo mainthread UserInterrupt)) Nothing
   when debug $ hPutStrLn stderr "initialized"
-  return $ NXTState h Nothing [] 0 0 Nothing
+  return $ NXTState h Nothing [] 0 0
 
 -- Stops all NXT activities and closes the handler (and so serial port connection)
 terminate :: NXTState -> IO ()
