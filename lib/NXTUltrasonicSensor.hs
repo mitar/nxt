@@ -42,7 +42,7 @@ usInit input = do
   when (ready > 0) $ do lowspeedRead input ; return () -- clears any possible pending data in the buffer
   usSetCommandState input WarmReset
 
-usReadByte :: (Integral a) => InputPort -> Command -> NXT a
+usReadByte :: Integral a => InputPort -> Command -> NXT a
 usReadByte input command = do
   lowspeedWrite input 1 [deviceAddress, command]
   b <- lowspeedRead input

@@ -43,7 +43,7 @@ device = "/dev/rfcomm0"
 debug :: Bool
 debug = False
 
-io :: (MonadIO m) => IO a -> m a
+io :: MonadIO m => IO a -> m a
 io = liftIO
 
 -- Opens and intializes serial port, installs signal handler so that ctrl-c closes the program gracefully

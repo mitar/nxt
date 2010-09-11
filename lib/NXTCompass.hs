@@ -37,7 +37,7 @@ csInit input = do
   when (ready > 0) $ do lowspeedRead input ; return () -- clears any possible pending data in the buffer
   csSetMode input ResultInteger
 
-csReadByte :: (Integral a) => InputPort -> Command -> NXT a
+csReadByte :: Integral a => InputPort -> Command -> NXT a
 csReadByte input command = do
   lowspeedWrite input 1 [deviceAddress, command]
   b <- lowspeedRead input

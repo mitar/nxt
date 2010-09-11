@@ -7,7 +7,7 @@ import Data.Word
 --  Appendix 1 - Communication protocol
 --  Appendix 2 - Direct commands
 
-failNXT :: (Monad m) => String -> Word8 -> m a
+failNXT :: Monad m => String -> Word8 -> m a
 failNXT msg 0x20 = fail $ msg ++ ": Pending communication transaction in progress"
 failNXT msg 0x40 = fail $ msg ++ ": Specified mailbox queue is empty"
 failNXT msg 0x81 = fail $ msg ++ ": No more handles"
