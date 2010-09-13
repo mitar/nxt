@@ -3,7 +3,6 @@
 module NXT.NXT where
 
 import qualified Data.ByteString as B
-import Control.Concurrent
 import Control.Exception
 import Control.Monad.State
 import Data.Bits
@@ -49,15 +48,14 @@ io = liftIO
 -- Opens and intializes serial port, installs signal handler so that ctrl-c closes the program gracefully
 initialize :: IO NXTState
 initialize = do
+  -- we have to block signals from interrupting openFd system call (fixed in GHC versions after 6.12.1)
   let signals = foldl (flip addSignal) emptySignalSet [virtualTimerExpired]
-  blockSignals signals -- we have to block signals from interrupting openFd system call (fixed in GHC versions after 6.12.1)
+  blockSignals signals
   fd <- openFd device ReadWrite Nothing OpenFileFlags { append = False, noctty = True, exclusive = False, nonBlock = True, trunc = False }
   unblockSignals signals
   throwErrnoIfMinus1_ "initSerialPort" $ initSerialPort fd
   h <- fdToHandle fd
   hSetBuffering h NoBuffering
-  mainthread <- myThreadId
-  _ <- installHandler softwareTermination (Catch (throwTo mainthread UserInterrupt)) Nothing
   when debug $ hPutStrLn stderr "initialized"
   return $ NXTState h Nothing [] 0 0
 
@@ -149,7 +147,6 @@ startProgram' confirm filename = do
     where request = if confirm
                       then 0x00
                       else 0x80
-
 
 -- Stops a program
 stopProgram :: NXT ()
