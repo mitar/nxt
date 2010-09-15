@@ -1,4 +1,4 @@
-module NXT.NXTTypes where
+module NXT.Types where
 
 import Control.Monad.State
 import Data.Int
@@ -36,6 +36,9 @@ type Voltage = Int -- in mV
 
 data OutputPort = A | B | C deriving (Bounded, Enum, Eq, Ord, Read, Show)
 data InputPort = One | Two | Three | Four deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+data Inbox = Inbox0 | Inbox1 | Inbox2 | Inbox3 | Inbox4 | Inbox5 | Inbox6 | Inbox7 | Inbox8 | Inbox9 deriving (Bounded, Enum, Eq, Ord, Read, Show)
+data RemoteInbox = RemoteInbox0 | RemoteInbox1 | RemoteInbox2 | RemoteInbox3 | RemoteInbox4 | RemoteInbox5 | RemoteInbox6 | RemoteInbox7 | RemoteInbox8 | RemoteInbox9 | RemoteInbox10 | RemoteInbox11 | RemoteInbox12 | RemoteInbox13 | RemoteInbox14 | RemoteInbox15 | RemoteInbox16 | RemoteInbox17 | RemoteInbox18 | RemoteInbox19 deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
 type OutputPower = Int -- power and direction, in [-100, 100] range
 data OutputMode =

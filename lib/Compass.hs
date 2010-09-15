@@ -1,11 +1,11 @@
-module NXT.NXTCompass where
+module NXT.Compass where
 
 import Control.Monad
 import Data.Word
 
 import NXT.NXT
-import NXT.NXTData
-import NXT.NXTTypes
+import NXT.Data
+import NXT.Types
 
 -- Described in CMPS-Nx-V20-User-Guide.pdf at www.mindsensors.com
 

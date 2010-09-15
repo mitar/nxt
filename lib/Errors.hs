@@ -1,4 +1,4 @@
-module NXT.NXTErrors where
+module NXT.Errors where
 
 import Data.Word
 
@@ -22,7 +22,7 @@ failNXT msg 0x89 = fail $ msg ++ ": No linear space"
 failNXT msg 0x8A = fail $ msg ++ ": Undefined error"
 failNXT msg 0x8B = fail $ msg ++ ": File is busy"
 failNXT msg 0x8C = fail $ msg ++ ": No write buffers"
-failNXT msg 0x8D = fail $ msg ++ ": Append not possible" 
+failNXT msg 0x8D = fail $ msg ++ ": Append not possible"
 failNXT msg 0x8E = fail $ msg ++ ": File is full"
 failNXT msg 0x8F = fail $ msg ++ ": File exists"
 failNXT msg 0x90 = fail $ msg ++ ": Module not found"

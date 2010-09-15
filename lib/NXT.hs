@@ -20,9 +20,9 @@ import System.Posix.Signals
 import System.Posix.Types
 import Text.Printf
 
-import NXT.NXTData
-import NXT.NXTErrors
-import NXT.NXTTypes
+import NXT.Data
+import NXT.Errors
+import NXT.Types
 
 -- Described in Lego Mindstorms NXT Bluetooth Developer Kit:
 --  Appendix 1 - Communication protocol
@@ -171,6 +171,29 @@ stopProgram' confirm = do
                       then 0x00
                       else 0x80
 
+-- Plays a sound file
+playSoundFile :: Bool -> FileName -> NXT ()
+playSoundFile = playSoundFile' False
+
+-- Plays a sound file, but also gets the confirmation
+playSoundFileConfirm :: Bool -> FileName -> NXT ()
+playSoundFileConfirm = playSoundFile' True
+
+playSoundFile' :: Bool -> Bool -> FileName -> NXT ()
+playSoundFile' confirm loop filename = do
+  when debug $ io . hPutStrLn stderr $ "playsoundfile"
+  let send = [request, 0x02, fromIntegral . fromEnum $ loop] ++ (nameToData filename)
+  sendData send
+  when confirm $ do
+    receive <- receiveData
+    case receive of
+      [0x02, 0x02, 0x00] -> return ()
+      [_, _, e]          -> failNXT "playSoundFile" e
+      _                  -> fail "playSoundFile"
+    where request = if confirm
+                      then 0x00
+                      else 0x80
+
 -- Plays a tone with given frequency (in Hz) for given duration (in s)
 playTone :: Frequency -> Duration -> NXT ()
 playTone frequency duration = do
@@ -179,18 +202,6 @@ playTone frequency duration = do
   sendData send
     where toMilliseconds :: Duration -> Integer -- duration is in seconds, but NXT requires milliseconds
           toMilliseconds d = floor (d * 1000)
-
--- Gets battery level (in mV)
-getBatteryLevel :: NXT Voltage
-getBatteryLevel = do
-  when debug $ io . hPutStrLn stderr $ "getbatterylevel"
-  let send = [0x00, 0x0B]
-  sendData send
-  receive <- receiveData
-  case receive of
-    [0x02, 0x0B, 0x00, v1, v2] -> return $ fromUWord [v1, v2]
-    _:_:e:_                    -> failNXT "getBatteryLevel" e
-    _                          -> fail "getBatteryLevel"
 
 -- Sets output (motor) state
 setOutputState :: OutputPort -> OutputPower -> [OutputMode] -> RegulationMode -> TurnRatio -> RunState -> TachoLimit -> NXT ()
@@ -378,6 +389,33 @@ resetInputScaledValue input = do
   let send = [0x80, 0x08, fromIntegral . fromEnum $ input]
   sendData send
 
+-- Writes a message
+-- Message length is limited to 58 bytes per command
+messageWrite :: Inbox -> String -> NXT ()
+messageWrite = messageWrite' False
+
+-- Writes a message, but also gets the confirmation
+messageWriteConfirm :: Inbox -> String -> NXT ()
+messageWriteConfirm = messageWrite' True
+
+messageWrite' :: Bool -> Inbox -> String -> NXT ()
+messageWrite' confirm inbox message
+  | length message <= 58 = do
+      when debug $ io . hPutStrLn stderr $ "messagewrite"
+      let message' = messageToData message
+          send = [request, 0x09, fromIntegral . fromEnum $ inbox] ++ (toUByte . length $ message') ++ message'
+      sendData send
+      when confirm $ do
+        receive <- receiveData
+        case receive of
+          [0x02, 0x09, 0x00] -> return ()
+          [_, _, e]          -> failNXT "messageWrite" e
+          _                  -> fail "messageWrite"
+  | otherwise             = throw $ PatternMatchFail "messageWrite"
+    where request = if confirm
+                      then 0x00
+                      else 0x80
+
 -- Resets motor position
 resetMotorPosition :: OutputPort -> MotorReset -> NXT ()
 resetMotorPosition output reset = do
@@ -389,6 +427,41 @@ resetMotorPosition output reset = do
     _                -> do
       let send = [0x80, 0x0A, fromIntegral . fromEnum $ output, fromIntegral . fromEnum $ reset]
       sendData send
+
+-- Gets battery level (in mV)
+getBatteryLevel :: NXT Voltage
+getBatteryLevel = do
+  when debug $ io . hPutStrLn stderr $ "getbatterylevel"
+  let send = [0x00, 0x0B]
+  sendData send
+  receive <- receiveData
+  case receive of
+    [0x02, 0x0B, 0x00, v1, v2] -> return $ fromUWord [v1, v2]
+    _:_:e:_                    -> failNXT "getBatteryLevel" e
+    _                          -> fail "getBatteryLevel"
+
+-- Stops sound playback
+stopSoundPlayback :: NXT ()
+stopSoundPlayback = stopSoundPlayback' False
+
+--Stops sound playback, but also gets the confirmation
+stopSoundPlaybackConfirm :: NXT ()
+stopSoundPlaybackConfirm = stopSoundPlayback' True
+
+stopSoundPlayback' :: Bool -> NXT ()
+stopSoundPlayback' confirm = do
+  when debug $ io . hPutStrLn stderr $ "stopsoundplayback"
+  let send = [request, 0x0C]
+  sendData send
+  when confirm $ do
+    receive <- receiveData
+    case receive of
+      [0x02, 0x0C, 0x00] -> return ()
+      [_, _, e]          -> failNXT "stopSoundPlayback" e
+      _                  -> fail "stopSoundPlayback"
+    where request = if confirm
+                      then 0x00
+                      else 0x80
 
 -- Sends a keep alive (turned on) packet
 keepAlive :: NXT ()
@@ -474,6 +547,32 @@ lowspeedRead input = do
     _:_:e:_                             -> failNXT "lowSpeedRead" e
     _                                   -> fail "lowSpeedRead"
 
+-- Gets current program name
+getCurrentProgramName :: NXT String
+getCurrentProgramName = do
+  when debug $ io . hPutStrLn stderr $ "getcurrentprogramname"
+  let send = [0x00, 0x11]
+  sendData send
+  receive <- receiveData
+  case receive of
+    0x02:0x11:0x00:filename | length filename == 20 -> return $ dataToString0 filename
+    _:_:e:_               -> failNXT "getCurrentProgramName" e
+    _                     -> fail "getCurrentProgramName"
+
+-- Reads a message
+messageRead :: RemoteInbox -> Bool -> NXT String
+messageRead inbox remove = do
+  when debug $ io . hPutStrLn stderr $ "messageRead"
+  let inbox' = fromIntegral . fromEnum $ inbox
+      send = [0x00, 0x13, inbox', fromIntegral . fromEnum $ Inbox0, fromIntegral . fromEnum $ remove] -- local inbox number does not matter for PC, it is used only when master NXT reads from slave NXT
+  sendData send
+  receive <- receiveData
+  case receive of
+    0x02:0x13:0x00:inbox'':size:message
+      | inbox'' == inbox' && length message == 59 && size <= 59 -> return $ dataToString0 message
+    _:_:e:_                                                     -> failNXT "messageRead" e
+    _                                                           -> fail "messageRead"
+
 -- Stops all NXT activities: stops motors and disables sensors
 stopEverything :: NXT ()
 stopEverything = do
@@ -481,6 +580,11 @@ stopEverything = do
   mapM_ stopSensor [One ..]
     where stopMotor x = setOutputState x 0 [] RegulationModeIdle 0 MotorRunStateIdle 0
           stopSensor x = setInputMode x NoSensor RawMode
+
+shutdown :: NXT ()
+shutdown = do
+  mid <- getModuleID "IOCtrl.mod"
+  writeIOMap (fromJust mid) 0 [0x00, 0x5a]
 
 -- Opens a file for writing a linked list of flash sectors
 openWrite :: FileName -> FileSize -> NXT FileHandle

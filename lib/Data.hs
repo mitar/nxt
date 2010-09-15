@@ -1,4 +1,4 @@
-module NXT.NXTData where
+module NXT.Data where
 
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as C
@@ -94,3 +94,7 @@ stringToData = B.unpack . C.pack
 -- Converts a name to a null-terminated list of bytes
 nameToData :: String -> [Word8]
 nameToData = stringToData0 . take 19 . flip (++) (repeat '\0')
+
+-- Converts a message to a null-terminated list of bytes
+messageToData :: String -> [Word8]
+messageToData = stringToData0 . take 58

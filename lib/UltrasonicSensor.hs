@@ -5,8 +5,8 @@ import Control.Monad
 import Data.Word
 
 import NXT.NXT
-import NXT.NXTData
-import NXT.NXTTypes
+import NXT.Data
+import NXT.Types
 
 -- I2C communication with ultrasonics sensor is described in Lego Mindstorms NXT Hardware Developer Kit:
 --  Appendix 7 - Ultrasonic sensor I2C communication protocol
