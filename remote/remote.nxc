@@ -1,0 +1,137 @@
+#define DEBUG 1
+
+#define INBOX 1
+
+#define MOVE_FOR 6
+#define SET_TO 7
+
+#define OUTPUT_A 1
+#define OUTPUT_B 2
+#define OUTPUT_C 4
+
+#if DEBUG
+inline string portsToString(unsigned char &ports) {
+	string s = "";
+	if (ports & OUTPUT_A) strcat(s, "A");
+	if (ports & OUTPUT_B) strcat(s, "B");
+	if (ports & OUTPUT_C) strcat(s, "C");
+	return s;
+}
+#endif
+
+inline void reset(const byte port) {
+	SetOutput(port, UpdateFlags, UF_UPDATE_RESET_COUNT | UF_UPDATE_RESET_BLOCK_COUNT | UF_UPDATE_RESET_ROTATION_COUNT);
+}
+
+inline void output_reset(const byte port, char &power, unsigned long &limit) {
+	SetOutput(port, Power, power, TachoLimit, limit, OutputMode, OUT_MODE_MOTORON | OUT_MODE_BRAKE, RegMode, OUT_REGMODE_IDLE, RunState, OUT_RUNSTATE_RUNNING, UpdateFlags, UF_UPDATE_MODE | UF_UPDATE_SPEED | UF_UPDATE_TACHO_LIMIT | UF_UPDATE_RESET_BLOCK_COUNT | UF_UPDATE_RESET_ROTATION_COUNT);
+}
+
+inline void output_reset_all(const byte port, char &power, unsigned long &limit) {
+	SetOutput(port, Power, power, TachoLimit, limit, OutputMode, OUT_MODE_MOTORON | OUT_MODE_BRAKE, RegMode, OUT_REGMODE_IDLE, RunState, OUT_RUNSTATE_RUNNING, UpdateFlags, UF_UPDATE_MODE | UF_UPDATE_SPEED | UF_UPDATE_TACHO_LIMIT | UF_UPDATE_RESET_BLOCK_COUNT | UF_UPDATE_RESET_ROTATION_COUNT | UF_UPDATE_RESET_COUNT);
+}
+
+inline void output_absolute(const byte port, char &power, long &count, long &old_count) {
+	long target = count - old_count;
+	unsigned long limit = abs(target);
+	power *= sign(target);
+	old_count = count;
+	output_reset(port, power, limit);
+}
+
+task main() {
+	unsigned char command, ports;
+	char power;
+	long old_count = 0; // TODO: Should we check this? Reset all counters at the beginning?
+	
+	RandomNumberType random;
+	KeepAliveType keepalive;
+
+	MessageReadType args;
+	args.QueueID = INBOX;
+	args.Remove = true;
+	while (true) {
+		#if DEBUG
+			TextOut(0, LCD_LINE6, "              ");
+			TextOut(0, LCD_LINE6, StrCat("A ", NumToStr(MotorTachoCount(OUT_A))));
+			TextOut(0, LCD_LINE7, "              ");
+			TextOut(0, LCD_LINE7, StrCat("B ", NumToStr(MotorTachoCount(OUT_B))));
+			TextOut(0, LCD_LINE8, "              ");
+			TextOut(0, LCD_LINE8, StrCat("C ", NumToStr(MotorTachoCount(OUT_C))));
+		#endif
+	
+		SysMessageRead(args);
+		if (args.Result != NO_ERR) continue;
+		
+		command = StrToNum(MidStr(args.Message, 0, 1));
+		ports = StrToNum(MidStr(args.Message, 1, 1));
+		power = StrToNum(MidStr(args.Message, 2, 3)) - 100;
+		
+		if (command == MOVE_FOR) {
+			unsigned long limit = StrToNum(MidStr(args.Message, 5, 6));
+
+			#if DEBUG
+				TextOut(0, LCD_LINE1, "              ");
+				TextOut(0, LCD_LINE1, "MOVE_FOR");
+				TextOut(0, LCD_LINE2, "              ");
+				TextOut(0, LCD_LINE2, portsToString(ports));
+				TextOut(0, LCD_LINE3, "              ");
+				TextOut(0, LCD_LINE3, NumToStr(power));
+				TextOut(0, LCD_LINE4, "              ");
+				TextOut(0, LCD_LINE4, NumToStr(limit));
+			#endif
+
+			SysRandomNumber(random);
+			
+			// We randomly select order so that possible latencies are averaged out
+			if (random.Result & 1) { // Test one bit for two choices
+				if (ports & OUTPUT_A) reset(OUT_A);
+				if (ports & OUTPUT_B) reset(OUT_B);
+				if (ports & OUTPUT_C) reset(OUT_C);
+
+				if (ports & OUTPUT_A) output_reset_all(OUT_A, power, limit);
+				if (ports & OUTPUT_B) output_reset_all(OUT_B, power, limit);
+				if (ports & OUTPUT_C) output_reset_all(OUT_C, power, limit);
+			}
+			else {
+				if (ports & OUTPUT_C) reset(OUT_C);
+				if (ports & OUTPUT_B) reset(OUT_B);
+				if (ports & OUTPUT_A) reset(OUT_A);
+				
+				if (ports & OUTPUT_C) output_reset_all(OUT_C, power, limit);
+				if (ports & OUTPUT_B) output_reset_all(OUT_B, power, limit);
+				if (ports & OUTPUT_A) output_reset_all(OUT_A, power, limit);
+			}
+		}
+		else if (command == SET_TO) {
+			long count = StrToNum(MidStr(args.Message, 5, 6));
+			
+			#if DEBUG
+				TextOut(0, LCD_LINE1, "              ");
+				TextOut(0, LCD_LINE1, "SET_TO");
+				TextOut(0, LCD_LINE2, "              ");
+				TextOut(0, LCD_LINE2, portsToString(ports));
+				TextOut(0, LCD_LINE3, "              ");
+				TextOut(0, LCD_LINE3, NumToStr(power));
+				TextOut(0, LCD_LINE4, "              ");
+				TextOut(0, LCD_LINE4, NumToStr(count));
+			#endif
+			
+			SysRandomNumber(random);
+			
+			// We randomly select order so that possible latencies are averaged out
+			if (random.Result & 1) { // Test one bit for two choices
+				if (ports & OUTPUT_A) output_absolute(OUT_A, power, count, old_count);
+				if (ports & OUTPUT_B) output_absolute(OUT_B, power, count, old_count);
+				if (ports & OUTPUT_C) output_absolute(OUT_C, power, count, old_count);
+			}
+			else {
+				if (ports & OUTPUT_C) output_absolute(OUT_C, power, count, old_count);
+				if (ports & OUTPUT_B) output_absolute(OUT_B, power, count, old_count);
+				if (ports & OUTPUT_A) output_absolute(OUT_A, power, count, old_count);
+			}
+		}
+		
+		SysKeepAlive(keepalive);
+	}
+}

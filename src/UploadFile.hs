@@ -16,15 +16,19 @@ upload = do
   bracket initialize terminate (evalStateT (uploadFiles args))
 
 uploadFiles :: [String] -> NXT ()
-uploadFiles args = mapM_ uploadFile args
-  where uploadFile file = do
-          io $ putStrLn $ "Uploading " ++ file
-          h <- io $ openBinaryFile file ReadMode
-          size <- io $ hFileSize h
-          content <- io $ hGetContents h
-          h' <- openWrite (takeFileName file) (fromIntegral size)
-          mapM_ (write h' . stringToData) $ chunk 61 content
-          close h'
-        chunk _ [] = [[]]
-        chunk n xs = y1 : chunk n y2
-          where (y1, y2) = splitAt n xs
+uploadFiles args = do
+  stopProgram
+  mapM_ uploadFile args
+    where uploadFile file = do
+            io $ putStrLn $ "Uploading " ++ file
+            h <- io $ openBinaryFile file ReadMode
+            size <- io $ hFileSize h
+            content <- io $ hGetContents h
+            let filename = takeFileName file
+            delete filename
+            h' <- openWrite filename (fromIntegral size)
+            mapM_ (write h' . stringToData) $ chunk 61 content
+            close h'
+          chunk _ [] = [[]]
+          chunk n xs = y1 : chunk n y2
+            where (y1, y2) = splitAt n xs

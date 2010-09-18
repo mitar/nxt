@@ -440,6 +440,14 @@ getBatteryLevel = do
     _:_:e:_                    -> failNXT "getBatteryLevel" e
     _                          -> fail "getBatteryLevel"
 
+-- Is battery rechargeable?
+isBatteryRechargeable :: NXT Bool
+isBatteryRechargeable = do
+  when debug $ io . hPutStrLn stderr $ "isbatteryrechargeable"
+  mid <- getModuleID "Ui.mod"
+  r <- readIOMap (fromJust mid) 35 1
+  return $ (/=) 0 (head r)
+
 -- Stops sound playback
 stopSoundPlayback :: NXT ()
 stopSoundPlayback = stopSoundPlayback' False
@@ -576,6 +584,7 @@ messageRead inbox remove = do
 -- Stops all NXT activities: stops motors and disables sensors
 stopEverything :: NXT ()
 stopEverything = do
+  when debug $ io . hPutStrLn stderr $ "stopeverything"
   mapM_ stopMotor [A ..]
   mapM_ stopSensor [One ..]
     where stopMotor x = setOutputState x 0 [] RegulationModeIdle 0 MotorRunStateIdle 0
@@ -583,8 +592,9 @@ stopEverything = do
 
 shutdown :: NXT ()
 shutdown = do
+  when debug $ io . hPutStrLn stderr $ "shutdown"
   mid <- getModuleID "IOCtrl.mod"
-  writeIOMap (fromJust mid) 0 [0x00, 0x5a]
+  writeIOMap (fromJust mid) 0 [0x5A, 0x00]
 
 -- Opens a file for writing a linked list of flash sectors
 openWrite :: FileName -> FileSize -> NXT FileHandle

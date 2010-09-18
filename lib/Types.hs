@@ -110,3 +110,6 @@ data ModuleInfo = ModuleInfo ModuleName ModuleID ModuleSize ModuleIOMapSize deri
 type IOMapOffset = Int -- unsigned word
 type IOMapLength = Int -- unsigned word
 type IOMapData = [Word8]
+
+data RemoteCommandType = MoveFor OutputPower TachoLimit | SetTo OutputPower TachoCount deriving (Eq, Show)
+data RemoteCommand = RemoteCommand [OutputPort] RemoteCommandType deriving (Eq, Show)
