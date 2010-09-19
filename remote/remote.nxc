@@ -33,16 +33,16 @@ inline void output_reset_all(const byte port, char &power, unsigned long &limit)
 
 inline void output_absolute(const byte port, char &power, long &count, long &old_count) {
 	long target = count - old_count;
-	unsigned long limit = abs(target);
+	unsigned long limit = abs(target);	
 	power *= sign(target);
 	old_count = count;
-	output_reset(port, power, limit);
+	output_reset(port, power, limit);	
 }
 
 task main() {
 	unsigned char command, ports;
 	char power;
-	long old_count = 0; // TODO: Should we check this? Reset all counters at the beginning?
+	long old_count = 0; // TODO: Should we check this? Reset all counters at the beginning? Set it to tacho count?
 	
 	RandomNumberType random;
 	KeepAliveType keepalive;

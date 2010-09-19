@@ -42,9 +42,6 @@ device = "/dev/rfcomm0"
 debug :: Bool
 debug = False
 
-io :: MonadIO m => IO a -> m a
-io = liftIO
-
 -- Opens and intializes serial port, installs signal handler so that ctrl-c closes the program gracefully
 initialize :: IO NXTState
 initialize = do
@@ -74,24 +71,24 @@ sendData message = do
   h <- gets nxthandle
   let len = toUWord . length $ message
       packet = len ++ message
-  io . B.hPut h . B.pack $ packet
-  when debug $ io . hPutStrLn stderr $ "sent: " ++ show packet
+  liftIO . B.hPut h . B.pack $ packet
+  when debug $ liftIO . hPutStrLn stderr $ "sent: " ++ show packet
 
 -- Main function for receiving data from NXT
 receiveData :: NXT [Word8]
 receiveData = do
   h <- gets nxthandle
-  len <- io $ B.hGet h 2
+  len <- liftIO $ B.hGet h 2
   let len' = fromUWord . B.unpack $ len
-  packet <- io $ B.hGet h len'
+  packet <- liftIO $ B.hGet h len'
   let unpacket = B.unpack packet
-  when debug $ io . hPutStrLn stderr $ "received: " ++ show unpacket
+  when debug $ liftIO . hPutStrLn stderr $ "received: " ++ show unpacket
   return unpacket
 
 -- Gets firmware and protocol versions
 getVersion :: NXT Version
 getVersion = do
-  when debug $ io . hPutStrLn stderr $ "getversion"
+  when debug $ liftIO . hPutStrLn stderr $ "getversion"
   let send = [0x01, 0x88]
   sendData send
   receive <- receiveData
@@ -108,7 +105,7 @@ getVersion = do
 -- Gets device information: name, Bluetooth 48 bit address in the string format, strength of Bluetooth signal, free space on flash
 getDeviceInfo :: NXT DeviceInfo
 getDeviceInfo = do
-  when debug $ io . hPutStrLn stderr $ "getdeviceinfo"
+  when debug $ liftIO . hPutStrLn stderr $ "getdeviceinfo"
   let send = [0x01, 0x9B]
   sendData send
   receive <- receiveData
@@ -135,7 +132,7 @@ startProgramConfirm = startProgram' True
 
 startProgram' :: Bool -> FileName -> NXT ()
 startProgram' confirm filename = do
-  when debug $ io . hPutStrLn stderr $ "startprogram"
+  when debug $ liftIO . hPutStrLn stderr $ "startprogram"
   let send = [request, 0x00] ++ (nameToData filename)
   sendData send
   when confirm $ do
@@ -150,21 +147,28 @@ startProgram' confirm filename = do
 
 -- Stops a program
 stopProgram :: NXT ()
-stopProgram = stopProgram' False
+stopProgram = stopProgram' False False
 
 -- Stops a program, but also gets the confirmation
 stopProgramConfirm :: NXT ()
-stopProgramConfirm = stopProgram' True
+stopProgramConfirm = stopProgram' True False
 
-stopProgram' :: Bool -> NXT ()
-stopProgram' confirm = do
-  when debug $ io . hPutStrLn stderr $ "stopprogram"
+-- Deletes a file, but requires program running
+stopProgramExisting :: FileName -> NXT ()
+stopProgramExisting = delete' True True
+
+stopProgram' :: Bool -> Bool -> NXT ()
+stopProgram' confirm running = do
+  when debug $ liftIO . hPutStrLn stderr $ "stopprogram"
   let send = [request, 0x01]
   sendData send
   when confirm $ do
     receive <- receiveData
     case receive of
       [0x02, 0x01, 0x00] -> return ()
+      [0x02, 0x01, 0xEC] -> if running
+                              then failNXT "stopProgram" 0xEC
+                              else return ()
       [_, _, e]          -> failNXT "stopProgram" e
       _                  -> fail "stopProgram"
     where request = if confirm
@@ -181,7 +185,7 @@ playSoundFileConfirm = playSoundFile' True
 
 playSoundFile' :: Bool -> Bool -> FileName -> NXT ()
 playSoundFile' confirm loop filename = do
-  when debug $ io . hPutStrLn stderr $ "playsoundfile"
+  when debug $ liftIO . hPutStrLn stderr $ "playsoundfile"
   let send = [request, 0x02, fromIntegral . fromEnum $ loop] ++ (nameToData filename)
   sendData send
   when confirm $ do
@@ -197,7 +201,7 @@ playSoundFile' confirm loop filename = do
 -- Plays a tone with given frequency (in Hz) for given duration (in s)
 playTone :: Frequency -> Duration -> NXT ()
 playTone frequency duration = do
-  when debug $ io . hPutStrLn stderr $ "playtone"
+  when debug $ liftIO . hPutStrLn stderr $ "playtone"
   let send = [0x80, 0x03] ++ (toUWord frequency) ++ (toUWord $ toMilliseconds duration)
   sendData send
     where toMilliseconds :: Duration -> Integer -- duration is in seconds, but NXT requires milliseconds
@@ -214,7 +218,7 @@ setOutputStateConfirm = setOutputState' True
 setOutputState' :: Bool -> OutputPort -> OutputPower -> [OutputMode] -> RegulationMode -> TurnRatio -> RunState -> TachoLimit -> NXT ()
 setOutputState' confirm output power mode regulation turn runstate tacholimit
   | power >= -100 && power <= 100 && turn >= -100 && turn <= 100 = do
-      when debug $ io . hPutStrLn stderr $ "setoutputstate"
+      when debug $ liftIO . hPutStrLn stderr $ "setoutputstate"
       let send = [request, 0x04, fromIntegral . fromEnum $ output] ++ (toSByte power) ++ [modebyte, regulation'] ++ (toSByte turn) ++ [runstate'] ++ (toULong tacholimit)
       sendData send
       when confirm $ do
@@ -241,11 +245,12 @@ setOutputState' confirm output power mode regulation turn runstate tacholimit
                           MotorRunStateRampUp -> 0x10
                           MotorRunStateRunning -> 0x20
                           MotorRunStateRampDown -> 0x40
+                          MotorRunStateHold -> 0x60
 
 -- Gets output (motor) state (with rotation)
 getOutputState :: OutputPort -> NXT OutputState
 getOutputState output = do
-  when debug $ io . hPutStrLn stderr $ "getoutputstate"
+  when debug $ liftIO . hPutStrLn stderr $ "getoutputstate"
   let send = [0x00, 0x06, fromIntegral . fromEnum $ output]
   sendData send
   receive <- receiveData
@@ -273,6 +278,7 @@ getOutputState output = do
                                 0x10 -> MotorRunStateRampUp
                                 0x20 -> MotorRunStateRunning
                                 0x40 -> MotorRunStateRampDown
+                                0x60 -> MotorRunStateHold
                                 _    -> throw $ PatternMatchFail "getOutputState"
                   tacholimit = fromULong . take 4 $ values
                   tachocount = fromSLong . take 4 . drop 4 $ values
@@ -291,7 +297,7 @@ setInputModeConfirm = setInputMode' True
 
 setInputMode' :: Bool -> InputPort -> SensorType -> SensorMode -> NXT ()
 setInputMode' confirm input sensortype sensormode = do
-  when debug $ io . hPutStrLn stderr $ "setinputmode"
+  when debug $ liftIO . hPutStrLn stderr $ "setinputmode"
   let send = [request, 0x05, fromIntegral . fromEnum $ input, sensortype', sensormode']
   sendData send
   when confirm $ do
@@ -333,7 +339,7 @@ setInputMode' confirm input sensortype sensormode = do
 -- Gets input (sensor) values
 getInputValues :: InputPort -> NXT InputValues
 getInputValues input = do
-  when debug $ io . hPutStrLn stderr $ "getinputvalues"
+  when debug $ liftIO . hPutStrLn stderr $ "getinputvalues"
   let send = [0x00, 0x07, fromIntegral . fromEnum $ input]
   sendData send
   receive <- receiveData
@@ -385,7 +391,7 @@ getInputValues input = do
 -- Resets scaled value
 resetInputScaledValue :: InputPort -> NXT ()
 resetInputScaledValue input = do
-  when debug $ io . hPutStrLn stderr $ "resetinputscaledvalue"
+  when debug $ liftIO . hPutStrLn stderr $ "resetinputscaledvalue"
   let send = [0x80, 0x08, fromIntegral . fromEnum $ input]
   sendData send
 
@@ -401,7 +407,7 @@ messageWriteConfirm = messageWrite' True
 messageWrite' :: Bool -> Inbox -> String -> NXT ()
 messageWrite' confirm inbox message
   | length message <= 58 = do
-      when debug $ io . hPutStrLn stderr $ "messagewrite"
+      when debug $ liftIO . hPutStrLn stderr $ "messagewrite"
       let message' = messageToData message
           send = [request, 0x09, fromIntegral . fromEnum $ inbox] ++ (toUByte . length $ message') ++ message'
       sendData send
@@ -419,7 +425,7 @@ messageWrite' confirm inbox message
 -- Resets motor position
 resetMotorPosition :: OutputPort -> MotorReset -> NXT ()
 resetMotorPosition output reset = do
-  when debug $ io . hPutStrLn stderr $ "resetmotorposition"
+  when debug $ liftIO . hPutStrLn stderr $ "resetmotorposition"
   case reset of
     InternalPosition -> do
       mid <- getModuleID "Output.mod"
@@ -431,7 +437,7 @@ resetMotorPosition output reset = do
 -- Gets battery level (in mV)
 getBatteryLevel :: NXT Voltage
 getBatteryLevel = do
-  when debug $ io . hPutStrLn stderr $ "getbatterylevel"
+  when debug $ liftIO . hPutStrLn stderr $ "getbatterylevel"
   let send = [0x00, 0x0B]
   sendData send
   receive <- receiveData
@@ -443,7 +449,7 @@ getBatteryLevel = do
 -- Is battery rechargeable?
 isBatteryRechargeable :: NXT Bool
 isBatteryRechargeable = do
-  when debug $ io . hPutStrLn stderr $ "isbatteryrechargeable"
+  when debug $ liftIO . hPutStrLn stderr $ "isbatteryrechargeable"
   mid <- getModuleID "Ui.mod"
   r <- readIOMap (fromJust mid) 35 1
   return $ (/=) 0 (head r)
@@ -458,7 +464,7 @@ stopSoundPlaybackConfirm = stopSoundPlayback' True
 
 stopSoundPlayback' :: Bool -> NXT ()
 stopSoundPlayback' confirm = do
-  when debug $ io . hPutStrLn stderr $ "stopsoundplayback"
+  when debug $ liftIO . hPutStrLn stderr $ "stopsoundplayback"
   let send = [request, 0x0C]
   sendData send
   when confirm $ do
@@ -474,8 +480,8 @@ stopSoundPlayback' confirm = do
 -- Sends a keep alive (turned on) packet
 keepAlive :: NXT ()
 keepAlive = do
-  when debug $ io . hPutStrLn stderr $ "keepalive"
-  current <- io $ getPOSIXTime
+  when debug $ liftIO . hPutStrLn stderr $ "keepalive"
+  current <- liftIO $ getPOSIXTime
   modify (\s -> s { lastkeepalive = current })
   let send = [0x80, 0x0D]
   sendData send
@@ -483,8 +489,8 @@ keepAlive = do
 -- Sends a keep alive (turned on) packet and gets current sleep time limit in milliseconds 
 keepAliveDuration :: NXT Duration
 keepAliveDuration = do
-  when debug $ io . hPutStrLn stderr $ "keepaliveduration"
-  current <- io $ getPOSIXTime
+  when debug $ liftIO . hPutStrLn stderr $ "keepaliveduration"
+  current <- liftIO $ getPOSIXTime
   modify (\s -> s { lastkeepalive = current })
   let send = [0x00, 0x0D]
   sendData send
@@ -500,7 +506,7 @@ keepAliveDuration = do
 -- Gets number of available bytes to read
 lowspeedGetStatus :: InputPort -> NXT Int
 lowspeedGetStatus input = do
-  when debug $ io . hPutStrLn stderr $ "lowspeedgetstatus"
+  when debug $ liftIO . hPutStrLn stderr $ "lowspeedgetstatus"
   let send = [0x00, 0x0E, fromIntegral . fromEnum $ input]
   sendData send
   receive <- receiveData
@@ -524,7 +530,7 @@ lowspeedWriteConfirm = lowspeedWrite' True
 lowspeedWrite' :: Bool -> InputPort -> RxDataLength -> TxData -> NXT ()
 lowspeedWrite' confirm input rx txdata
   | length txdata <= 16 && rx <= 16 = do
-      when debug $ io . hPutStrLn stderr $ "lowspeedwrite"
+      when debug $ liftIO . hPutStrLn stderr $ "lowspeedwrite"
       let send = [request, 0x0F, fromIntegral . fromEnum $ input] ++ (toUByte . length $ txdata) ++ (toUByte rx) ++ txdata
       sendData send
       when confirm $ do
@@ -544,7 +550,7 @@ lowspeedWrite' confirm input rx txdata
 -- Data length is limited to 16 bytes per command
 lowspeedRead :: InputPort -> NXT RxData
 lowspeedRead input = do
-  when debug $ io . hPutStrLn stderr $ "lowspeedread"
+  when debug $ liftIO . hPutStrLn stderr $ "lowspeedread"
   let send = [0x00, 0x10, fromIntegral . fromEnum $ input]
   sendData send
   receive <- receiveData
@@ -556,21 +562,22 @@ lowspeedRead input = do
     _                                   -> fail "lowSpeedRead"
 
 -- Gets current program name
-getCurrentProgramName :: NXT String
+getCurrentProgramName :: NXT (Maybe String)
 getCurrentProgramName = do
-  when debug $ io . hPutStrLn stderr $ "getcurrentprogramname"
+  when debug $ liftIO . hPutStrLn stderr $ "getcurrentprogramname"
   let send = [0x00, 0x11]
   sendData send
   receive <- receiveData
   case receive of
-    0x02:0x11:0x00:filename | length filename == 20 -> return $ dataToString0 filename
-    _:_:e:_               -> failNXT "getCurrentProgramName" e
-    _                     -> fail "getCurrentProgramName"
+    0x02:0x11:0x00:filename | length filename == 20 -> return $ Just $ dataToString0 filename
+    0x02:0x11:0xEC:_                                -> return Nothing
+    _:_:e:_                                         -> failNXT "getCurrentProgramName" e
+    _                                               -> fail "getCurrentProgramName"
 
 -- Reads a message
 messageRead :: RemoteInbox -> Bool -> NXT String
 messageRead inbox remove = do
-  when debug $ io . hPutStrLn stderr $ "messageRead"
+  when debug $ liftIO . hPutStrLn stderr $ "messageRead"
   let inbox' = fromIntegral . fromEnum $ inbox
       send = [0x00, 0x13, inbox', fromIntegral . fromEnum $ Inbox0, fromIntegral . fromEnum $ remove] -- local inbox number does not matter for PC, it is used only when master NXT reads from slave NXT
   sendData send
@@ -584,7 +591,7 @@ messageRead inbox remove = do
 -- Stops all NXT activities: stops motors and disables sensors
 stopEverything :: NXT ()
 stopEverything = do
-  when debug $ io . hPutStrLn stderr $ "stopeverything"
+  when debug $ liftIO . hPutStrLn stderr $ "stopeverything"
   mapM_ stopMotor [A ..]
   mapM_ stopSensor [One ..]
     where stopMotor x = setOutputState x 0 [] RegulationModeIdle 0 MotorRunStateIdle 0
@@ -592,14 +599,14 @@ stopEverything = do
 
 shutdown :: NXT ()
 shutdown = do
-  when debug $ io . hPutStrLn stderr $ "shutdown"
+  when debug $ liftIO . hPutStrLn stderr $ "shutdown"
   mid <- getModuleID "IOCtrl.mod"
   writeIOMap (fromJust mid) 0 [0x5A, 0x00]
 
 -- Opens a file for writing a linked list of flash sectors
 openWrite :: FileName -> FileSize -> NXT FileHandle
 openWrite filename filesize = do
-  when debug $ io . hPutStrLn stderr $ "openwrite"
+  when debug $ liftIO . hPutStrLn stderr $ "openwrite"
   let send = [0x01, 0x81] ++ (nameToData filename) ++ (toULong filesize)
   sendData send
   receive <- receiveData
@@ -611,7 +618,7 @@ openWrite filename filesize = do
 -- Opens a file for writing a linear contiguous block of flash memory (required for user programs and certain data files)
 openWriteLinear :: FileName -> FileSize -> NXT FileHandle
 openWriteLinear filename filesize = do
-  when debug $ io . hPutStrLn stderr $ "openwritelinear"
+  when debug $ liftIO . hPutStrLn stderr $ "openwritelinear"
   let send = [0x01, 0x89] ++ (nameToData filename) ++ (toULong filesize)
   sendData send
   receive <- receiveData
@@ -632,7 +639,7 @@ writeConfirm = write' True
 write' :: Bool -> FileHandle -> FileData -> NXT ()
 write' confirm filehandle filedata
   | length filedata <= 61 = do
-      when debug $ io . hPutStrLn stderr $ "write"
+      when debug $ liftIO . hPutStrLn stderr $ "write"
       let send = [request, 0x83] ++ (toUByte filehandle) ++ filedata
       sendData send
       when confirm $ do
@@ -656,7 +663,7 @@ closeConfirm = close' True
 
 close' :: Bool -> FileHandle -> NXT ()
 close' confirm filehandle = do
-  when debug $ io . hPutStrLn stderr $ "close"
+  when debug $ liftIO . hPutStrLn stderr $ "close"
   let send = [request, 0x84] ++ (toUByte filehandle)
   sendData send
   when confirm $ do
@@ -684,7 +691,7 @@ deleteExisting = delete' True True
 
 delete' :: Bool -> Bool -> FileName -> NXT ()
 delete' confirm existence filename = do
-  when debug $ io . hPutStrLn stderr $ "delete"
+  when debug $ liftIO . hPutStrLn stderr $ "delete"
   let send = [request, 0x85] ++ (nameToData filename)
   sendData send
   when confirm $ do
@@ -704,7 +711,7 @@ delete' confirm existence filename = do
 -- Requests information about the first module matching given module name (which can be a wild card)
 requestFirstModule :: ModuleName -> NXT (ModuleHandle, Maybe ModuleInfo)
 requestFirstModule modulename = do
-  when debug $ io . hPutStrLn stderr $ "requestfirstmodule"
+  when debug $ liftIO . hPutStrLn stderr $ "requestfirstmodule"
   let send = [0x01, 0x90] ++ (nameToData modulename)
   sendData send
   receive <- receiveData
@@ -722,7 +729,7 @@ requestFirstModule modulename = do
 -- Requests information about the next module matching previously requested module name (which can be a wild card)
 requestNextModule :: ModuleHandle -> NXT (ModuleHandle, Maybe ModuleInfo)
 requestNextModule modulehandle = do
-  when debug $ io . hPutStrLn stderr $ "requestnextmodule"
+  when debug $ liftIO . hPutStrLn stderr $ "requestnextmodule"
   let send = [0x01, 0x91] ++ (toUByte modulehandle)
   sendData send
   receive <- receiveData
@@ -747,7 +754,7 @@ closeModuleHandleConfirm = closeModuleHandle' True
 
 closeModuleHandle' :: Bool -> ModuleHandle -> NXT ()
 closeModuleHandle' confirm modulehandle = do
-  when debug $ io . hPutStrLn stderr $ "closemodulehandle"
+  when debug $ liftIO . hPutStrLn stderr $ "closemodulehandle"
   let send = [request, 0x92] ++ (toUByte modulehandle)
   sendData send
   when confirm $ do
@@ -786,7 +793,7 @@ listModules modulename = do
 readIOMap :: ModuleID -> IOMapOffset -> IOMapLength -> NXT IOMapData
 readIOMap moduleid offset len
   | offset >= 0 && len <= 119 = do
-      when debug $ io . hPutStrLn stderr $ "readiomap"
+      when debug $ liftIO . hPutStrLn stderr $ "readiomap"
       let send = [0x01, 0x94] ++ (toULong moduleid) ++ (toUWord offset) ++ (toUWord len)
       sendData send
       receive <- receiveData
@@ -809,7 +816,7 @@ writeIOMapConfirm = writeIOMap' True
 writeIOMap' :: Bool -> ModuleID -> IOMapOffset -> IOMapData -> NXT ()
 writeIOMap' confirm moduleid offset mapdata
   | offset >= 0 && length mapdata <= 54 = do
-      when debug $ io . hPutStrLn stderr $ "writeiomap"
+      when debug $ liftIO . hPutStrLn stderr $ "writeiomap"
       let send = [request, 0x95] ++ (toULong moduleid) ++ (toUWord offset) ++ (toUWord $ length mapdata) ++ mapdata
       sendData send
       when confirm $ do

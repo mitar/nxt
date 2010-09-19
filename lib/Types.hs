@@ -57,6 +57,7 @@ data RunState =
   | MotorRunStateRampUp -- ramping to a new speed set-point that is greater than the current speed set-point
   | MotorRunStateRunning -- enables power to motor
   | MotorRunStateRampDown -- ramping to a new speed set-point that is less than the current speed set-point
+  | MotorRunStateHold -- hold at the current position
   deriving (Eq, Show)
 type TachoLimit = Int64 -- unsigned long
 type TachoCount = Int64 -- signed long

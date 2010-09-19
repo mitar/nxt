@@ -17,15 +17,15 @@ upload = do
 
 uploadFiles :: [String] -> NXT ()
 uploadFiles args = do
-  stopProgram
+  stopProgramConfirm
   mapM_ uploadFile args
     where uploadFile file = do
-            io $ putStrLn $ "Uploading " ++ file
-            h <- io $ openBinaryFile file ReadMode
-            size <- io $ hFileSize h
-            content <- io $ hGetContents h
+            liftIO $ putStrLn $ "Uploading " ++ file
+            h <- liftIO $ openBinaryFile file ReadMode
+            size <- liftIO $ hFileSize h
+            content <- liftIO $ hGetContents h
             let filename = takeFileName file
-            delete filename
+            deleteConfirm filename
             h' <- openWrite filename (fromIntegral size)
             mapM_ (write h' . stringToData) $ chunk 61 content
             close h'

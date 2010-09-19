@@ -1,6 +1,8 @@
 module NXT.Remote where
 
 import Control.Exception
+import Control.Monad.State
+import Data.Maybe
 import Text.Printf
 
 import NXT.NXT
@@ -24,8 +26,16 @@ encodeRemoteCommand (RemoteCommand ports command) =
 
 startRemoteProgram :: NXT ()
 startRemoteProgram = do
-  stopProgram
-  startProgramConfirm "remote.rxe"
+  stopAndWait
+  startAndWait
+    where stopAndWait = do
+            stopProgramConfirm
+            name <- getCurrentProgramName
+            unless (isNothing name) stopAndWait
+          startAndWait = do
+            startProgramConfirm "remote.rxe"
+            name <- getCurrentProgramName
+            unless (isJust name) startAndWait
 
 stopRemoteProgram :: NXT ()
 stopRemoteProgram = stopProgram
