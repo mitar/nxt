@@ -601,7 +601,7 @@ shutdown :: NXT ()
 shutdown = do
   when debug $ liftIO . hPutStrLn stderr $ "shutdown"
   mid <- getModuleID "IOCtrl.mod"
-  writeIOMap (fromJust mid) 0 [0x5A, 0x00]
+  writeIOMap (fromJust mid) 0 [0x00, 0x5A]
 
 -- Opens a file for writing a linked list of flash sectors
 openWrite :: FileName -> FileSize -> NXT FileHandle
