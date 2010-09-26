@@ -2,7 +2,9 @@ module UploadFile where
 
 import Control.Exception
 import Control.Monad.State
+import System.Console.GetOpt
 import System.Environment
+import System.Exit
 import System.IO
 import System.FilePath
 
@@ -10,10 +12,35 @@ import NXT.NXT
 import NXT.Data
 import NXT.Types
 
+data Option = Help deriving (Eq,Show)
+
+options :: [OptDescr Option]
+options = [
+    Option ['h'] ["help"] (NoArg Help) "show this help"
+  ]
+
 upload :: IO ()
 upload = do
+  programName <- getProgName
+  let header = programName ++ " [option ...] <file ...>" ++ "\n\nOptions:"
+      usage  = "Usage:\n" ++ (usageInfo header options)
+  
   args <- getArgs
-  bracket initialize terminate (evalStateT (uploadFiles args))
+  (opts, files) <- case getOpt Permute options args of
+                     (o, fs, [])  -> return (o, fs)
+                     (_, _, errs) -> do
+                       hPutStrLn stderr $ "Error(s):\n" ++ concat errs ++ "\n" ++ usage
+                       exitWith $ ExitFailure 1
+  
+  when (Help `elem` opts) $ do
+    putStrLn usage
+    exitWith ExitSuccess
+  
+  when (null files) $ do
+    hPutStrLn stderr $ "Error(s):\nno files to upload specified\n" ++ "\n" ++ usage
+    exitWith $ ExitFailure 1
+  
+  bracket initialize terminate (evalStateT (uploadFiles files))
 
 uploadFiles :: [String] -> NXT ()
 uploadFiles args = do
