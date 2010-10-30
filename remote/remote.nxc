@@ -84,7 +84,7 @@ task main() {
 			SysRandomNumber(random);
 			
 			// We randomly select order so that possible latencies are averaged out
-			if (random.Result & 1) { // Test one bit for two choices
+			if (random.Result & 1) { // Tests one bit for two choices
 				if (ports & OUTPUT_A) reset(OUT_A);
 				if (ports & OUTPUT_B) reset(OUT_B);
 				if (ports & OUTPUT_C) reset(OUT_C);
@@ -120,7 +120,7 @@ task main() {
 			SysRandomNumber(random);
 			
 			// We randomly select order so that possible latencies are averaged out
-			if (random.Result & 1) { // Test one bit for two choices
+			if (random.Result & 1) { // Tests one bit for two choices
 				if (ports & OUTPUT_A) output_absolute(OUT_A, power, count, old_count);
 				if (ports & OUTPUT_B) output_absolute(OUT_B, power, count, old_count);
 				if (ports & OUTPUT_C) output_absolute(OUT_C, power, count, old_count);

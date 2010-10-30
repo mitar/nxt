@@ -429,7 +429,7 @@ resetMotorPosition output reset = do
   case reset of
     InternalPosition -> do
       mid <- getModuleID "Output.mod"
-      writeIOMap (fromJust mid) ((fromEnum output) * 32 + 18) [0x08] -- Flags field is at offset 18, output block is 32 bytes long, UPDATE_RESET_COUNT is 0x08
+      writeIOMap (fromJust mid) ((fromEnum output) * 32 + 18) [0x08] -- flags field is at offset 18, output block is 32 bytes long, UPDATE_RESET_COUNT is 0x08
     _                -> do
       let send = [0x80, 0x0A, fromIntegral . fromEnum $ output, fromIntegral . fromEnum $ reset]
       sendData send
@@ -458,7 +458,7 @@ isBatteryRechargeable = do
 stopSoundPlayback :: NXT ()
 stopSoundPlayback = stopSoundPlayback' False
 
---Stops sound playback, but also gets the confirmation
+-- Stops sound playback, but also gets the confirmation
 stopSoundPlaybackConfirm :: NXT ()
 stopSoundPlaybackConfirm = stopSoundPlayback' True
 

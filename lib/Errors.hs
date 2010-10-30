@@ -44,5 +44,5 @@ failNXT msg 0xEF = fail $ msg ++ ": Attempted to access invalid field of a struc
 failNXT msg 0xF0 = fail $ msg ++ ": Bad input or output specified"
 failNXT msg 0xFB = fail $ msg ++ ": Insufficient memory available"
 failNXT msg 0xFF = fail $ msg ++ ": Bad arguments"
-failNXT msg 0x00 = fail msg -- Some guard (restriction) failed?
-failNXT msg _    = fail msg -- Invalid error code?
+failNXT msg 0x00 = fail msg -- some guard (restriction) failed?
+failNXT msg _    = fail msg -- invalid error code?
