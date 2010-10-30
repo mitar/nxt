@@ -12,7 +12,7 @@ import NXT.NXT
 import NXT.Data
 import NXT.Types
 
-data Option = Help deriving (Eq,Show)
+data Option = Help deriving (Eq, Show)
 
 options :: [OptDescr Option]
 options = [
