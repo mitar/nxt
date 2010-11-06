@@ -1,4 +1,6 @@
-module Shutdown where
+module Shutdown (
+  shutdown
+) where
 
 import Control.Exception
 import Control.Monad.State

@@ -1,4 +1,6 @@
-module UploadFile where
+module UploadFile (
+  upload
+) where
 
 import Control.Exception
 import Control.Monad.State
