@@ -29,6 +29,7 @@ import NXT.Types
 --  Appendix 2 - Direct commands
 
 -- TODO: All functions which requests ModuleInfo could populate module ID cache along the way
+-- TODO: Add an optional warning if direction of communication changes
 
 -- Foreign function call for C function which initialize serial port device on POSIX systems
 foreign import ccall unsafe "initserial.h" initSerialPort :: Fd -> IO CInt
