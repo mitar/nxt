@@ -1,10 +1,29 @@
-module NXT.Data where
+module NXT.Data (
+  fromUByte,
+  fromUWord,
+  fromULong,
+  fromSByte,
+  fromSWord,
+  fromSLong,
+  dataToString,
+  dataToString0,
+  toUByte,
+  toUWord,
+  toULong,
+  toSByte,
+  toSWord,
+  toSLong,
+  stringToData,
+  stringToData0,
+  nameToData,
+  messageToData
+) where
 
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as C
-import Control.Exception
 import Data.List
 import Data.Word
+import Control.Exception
 
 -- Converts a list of bytes to an unsigned numeric value
 dataToInt :: Integral a => [Word8] -> a -- least significant byte first

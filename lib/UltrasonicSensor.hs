@@ -1,7 +1,34 @@
-module NXT.NXTUltrasonicSensor where
+module NXT.NXTUltrasonicSensor (
+  Zero,
+  ScaleFactor,
+  ScaleDivisor,
+  CommandState(..),
+  ContinuousInterval,
+  MeasurementNumber,
+  usInit,
+  usGetVersion,
+  usGetProductID,
+  usGetSensorType,
+  usGetFactoryZero,
+  usGetFactoryScaleFactor,
+  usGetFactoryScaleDivisor,
+  usGetMeasurementUnits,
+  usGetCommandState,
+  usGetContinuousInterval,
+  usGetActualZero,
+  usGetActualScaleFactor,
+  usGetActualScaleDivisor,
+  usSetCommandState,
+  usSetContinuousInterval,
+  usSetActualZero,
+  usSetActualScaleFactor,
+  usSetActualScaleDivisor,
+  usGetMeasurement
+) where
 
 import Control.Exception
 import Control.Monad
+import Control.Monad.Trans
 import Data.Word
 
 import NXT.NXT
@@ -12,9 +39,6 @@ import NXT.Types
 --  Appendix 7 - Ultrasonic sensor I2C communication protocol
 
 -- Specification is vague whether zero, factor, divisor and measurement values are signed or unsigned
-
-type DeviceAddress = Word8
-type Command = Word8
 
 type Zero = Int
 type ScaleFactor = Int
@@ -30,7 +54,6 @@ data CommandState =
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 type ContinuousInterval = Int
 type MeasurementNumber = Int
-type Measurement = Maybe Int
 
 deviceAddress :: DeviceAddress
 deviceAddress = 0x02
@@ -88,7 +111,7 @@ usGetCommandState input = do
     0x02 -> return ContinuousMeasurement
     0x03 -> return EventCapture
     0x04 -> return WarmReset
-    _    -> throw $ PatternMatchFail "usGetCommandState"
+    _    -> liftIO . throwIO $ PatternMatchFail "usGetCommandState"
 
 usGetContinuousInterval :: InputPort -> NXT ContinuousInterval
 usGetContinuousInterval input = usReadByte input 0x40
@@ -119,9 +142,9 @@ usSetActualScaleDivisor input divisor = lowspeedWrite input 0 $ [deviceAddress, 
 
 -- Measurement
 
-usGetMeasurement :: InputPort -> MeasurementNumber -> NXT Measurement
+usGetMeasurement :: InputPort -> MeasurementNumber -> NXT (Maybe Measurement)
 usGetMeasurement input number | number >= 0 && number < 8 = do measurement <- usReadByte input $ 0x42 + (fromIntegral number)
                                                                if measurement == 0xFF
                                                                  then return Nothing
                                                                  else return $ Just measurement
-                              | otherwise                 = throw . PatternMatchFail $ "usGetMeasurement"
+                              | otherwise                 = liftIO . throwIO $ PatternMatchFail "usGetMeasurement"

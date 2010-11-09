@@ -1,4 +1,14 @@
-module NXT.Compass where
+module NXT.Compass (
+  Mode(..),
+  csInit,
+  csReadByte,
+  csReadString,
+  csGetVersion,
+  csGetProductID,
+  csGetSensorType,
+  csSetMode,
+  csGetMeasurement
+) where
 
 import Control.Monad
 import Data.Word
@@ -8,9 +18,6 @@ import NXT.Data
 import NXT.Types
 
 -- Described in CMPS-Nx-V20-User-Guide.pdf at www.mindsensors.com
-
-type DeviceAddress = Word8
-type Command = Word8
 
 data Mode =
     AutoTrigOn -- continuos measuring?
@@ -24,8 +31,6 @@ data Mode =
   | BeginCalibration
   | EndCalibration
   deriving Show
-
-type Measurement = Int
 
 deviceAddress :: DeviceAddress
 deviceAddress = 0x02

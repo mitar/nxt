@@ -1,13 +1,69 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module NXT.NXT where
+module NXT.NXT (
+  initSerialPort,
+  initialize,
+  terminate,
+  getVersion,
+  getDeviceInfo,
+  startProgram,
+  startProgramConfirm,
+  stopProgram,
+  stopProgramConfirm,
+  stopProgramExisting,
+  playSoundFile,
+  playSoundFileConfirm,
+  playTone,
+  setOutputState,
+  setOutputStateConfirm,
+  getOutputState,
+  setInputMode,
+  setInputModeConfirm,
+  getInputValues,
+  resetInputScaledValue,
+  messageWrite,
+  messageWriteConfirm,
+  resetMotorPosition,
+  getBatteryLevel,
+  isBatteryRechargeable,
+  stopSoundPlayback,
+  stopSoundPlaybackConfirm,
+  keepAlive,
+  keepAliveDuration,
+  lowspeedGetStatus,
+  lowspeedWrite,
+  lowspeedWriteConfirm,
+  lowspeedRead,
+  getCurrentProgramName,
+  messageRead,
+  stopEverything,
+  shutdown,
+  openWrite,
+  openWriteLinear,
+  write,
+  writeConfirm,
+  close,
+  closeConfirm,
+  delete,
+  deleteConfirm,
+  deleteExisting,
+  requestFirstModule,
+  requestNextModule,
+  closeModuleHandle,
+  closeModuleHandleConfirm,
+  listModules,
+  readIOMap,
+  writeIOMap,
+  writeIOMapConfirm,
+  getModuleID
+) where
 
 import qualified Data.ByteString as B
 import Control.Exception
 import Control.Monad.State
 import Data.Bits
 import Data.Char
-import Data.List
+import Data.List hiding (delete)
 import Data.Maybe
 import Data.Ratio
 import Data.Time.Clock.POSIX
@@ -32,7 +88,10 @@ import NXT.Types
 -- TODO: Add an optional warning if direction of communication changes
 
 -- Foreign function call for C function which initialize serial port device on POSIX systems
-foreign import ccall unsafe "initserial.h" initSerialPort :: Fd -> IO CInt
+foreign import ccall unsafe "initSerialPort" initSerialPort' :: Fd -> IO CInt
+
+initSerialPort :: Fd -> IO ()
+initSerialPort fd = throwErrnoIfMinus1_ "initSerialPort" $ initSerialPort' fd
 
 -- TODO: Move to configuration file
 device :: FilePath -- serial port device file
@@ -51,7 +110,7 @@ initialize = do
   blockSignals signals
   fd <- openFd device ReadWrite Nothing OpenFileFlags { append = False, noctty = True, exclusive = False, nonBlock = True, trunc = False }
   unblockSignals signals
-  throwErrnoIfMinus1_ "initSerialPort" $ initSerialPort fd
+  initSerialPort fd
   h <- fdToHandle fd
   hSetBuffering h NoBuffering
   when debug $ hPutStrLn stderr "initialized"
@@ -100,8 +159,8 @@ getVersion = do
               fMinor' = fromIntegral fMinor
               pMajor' = fromIntegral pMajor
               pMinor' = fromIntegral pMinor
-    _:_:e:_                                            -> failNXT "getVersion" e
-    _                                                  -> fail "getVersion"
+    _:_:e:_                                            -> liftIO $ failNXT "getVersion" e
+    _                                                  -> liftIO $ failNXT' "getVersion"
 
 -- Gets device information: name, Bluetooth 48 bit address in the string format, strength of Bluetooth signal, free space on flash
 getDeviceInfo :: NXT DeviceInfo
@@ -120,8 +179,8 @@ getDeviceInfo = do
               -- 7th byte not used?
               btstrength = fromULong . take 4 . drop 7 $ info'
               flashfree = fromULong . take 4 . drop 11 $ info'
-    _:_:e:_               -> failNXT "getDeviceInfo" e
-    _                     -> fail "getDeviceInfo"
+    _:_:e:_               -> liftIO $ failNXT "getDeviceInfo" e
+    _                     -> liftIO $ failNXT' "getDeviceInfo"
 
 -- Starts a program
 startProgram :: FileName -> NXT ()
@@ -140,8 +199,8 @@ startProgram' confirm filename = do
     receive <- receiveData
     case receive of
       [0x02, 0x00, 0x00] -> return ()
-      [_, _, e]          -> failNXT "startProgram" e
-      _                  -> fail "startProgram"
+      [_, _, e]          -> liftIO $ failNXT "startProgram" e
+      _                  -> liftIO $ failNXT' "startProgram"
     where request = if confirm
                       then 0x00
                       else 0x80
@@ -168,10 +227,10 @@ stopProgram' confirm running = do
     case receive of
       [0x02, 0x01, 0x00] -> return ()
       [0x02, 0x01, 0xEC] -> if running
-                              then failNXT "stopProgram" 0xEC
+                              then liftIO $ failNXT "stopProgram" 0xEC
                               else return ()
-      [_, _, e]          -> failNXT "stopProgram" e
-      _                  -> fail "stopProgram"
+      [_, _, e]          -> liftIO $ failNXT "stopProgram" e
+      _                  -> liftIO $ failNXT' "stopProgram"
     where request = if confirm
                       then 0x00
                       else 0x80
@@ -193,8 +252,8 @@ playSoundFile' confirm loop filename = do
     receive <- receiveData
     case receive of
       [0x02, 0x02, 0x00] -> return ()
-      [_, _, e]          -> failNXT "playSoundFile" e
-      _                  -> fail "playSoundFile"
+      [_, _, e]          -> liftIO $ failNXT "playSoundFile" e
+      _                  -> liftIO $ failNXT' "playSoundFile"
     where request = if confirm
                       then 0x00
                       else 0x80
@@ -226,9 +285,9 @@ setOutputState' confirm output power mode regulation turn runstate tacholimit
         receive <- receiveData
         case receive of
           [0x02, 0x04, 0x00] -> return ()
-          [_, _, e]          -> failNXT "setOutputState" e
-          _                  -> fail "setOutputState"
-  | otherwise                                                    = throw $ PatternMatchFail "setOutputState"
+          [_, _, e]          -> liftIO $ failNXT "setOutputState" e
+          _                  -> liftIO $ failNXT' "setOutputState"
+  | otherwise                                                    = liftIO . throwIO $ PatternMatchFail "setOutputState"
     where request     = if confirm
                           then 0x00
                           else 0x80
@@ -285,8 +344,8 @@ getOutputState output = do
                   tachocount = fromSLong . take 4 . drop 4 $ values
                   blocktachocount = fromSLong . take 4 . drop 8 $ values
                   rotationcount = fromSLong . take 4 . drop 12 $ values
-    _:_:e:_                                                         -> failNXT "getOutputState" e
-    _                                                               -> fail "getOutputState"
+    _:_:e:_                                                         -> liftIO $ failNXT "getOutputState" e
+    _                                                               -> liftIO $ failNXT' "getOutputState"
 
 -- Sets input (sensor) mode
 setInputMode :: InputPort -> SensorType -> SensorMode -> NXT ()
@@ -305,8 +364,8 @@ setInputMode' confirm input sensortype sensormode = do
     receive <- receiveData
     case receive of
       [0x02, 0x05, 0x00] -> return ()
-      [_, _, e]          -> failNXT "setInputMode" e
-      _                  -> fail "setInputMode"
+      [_, _, e]          -> liftIO $ failNXT "setInputMode" e
+      _                  -> liftIO $ failNXT' "setInputMode"
     where request     = if confirm
                           then 0x00
                           else 0x80
@@ -386,8 +445,8 @@ getInputValues input = do
                   normalized  = fromUWord . take 2 . drop 2 $ values
                   scaled      = fromSWord . take 2 . drop 4 $ values
                   calibratedv = fromSWord . take 2 . drop 6 $ values
-    _:_:e:_                                                       -> failNXT "getInputValues" e
-    _                                                             -> fail "getInputValues"
+    _:_:e:_                                                       -> liftIO $ failNXT "getInputValues" e
+    _                                                             -> liftIO $ failNXT' "getInputValues"
 
 -- Resets scaled value
 resetInputScaledValue :: InputPort -> NXT ()
@@ -416,9 +475,9 @@ messageWrite' confirm inbox message
         receive <- receiveData
         case receive of
           [0x02, 0x09, 0x00] -> return ()
-          [_, _, e]          -> failNXT "messageWrite" e
-          _                  -> fail "messageWrite"
-  | otherwise             = throw $ PatternMatchFail "messageWrite"
+          [_, _, e]          -> liftIO $ failNXT "messageWrite" e
+          _                  -> liftIO $ failNXT' "messageWrite"
+  | otherwise             = liftIO . throwIO $ PatternMatchFail "messageWrite"
     where request = if confirm
                       then 0x00
                       else 0x80
@@ -444,8 +503,8 @@ getBatteryLevel = do
   receive <- receiveData
   case receive of
     [0x02, 0x0B, 0x00, v1, v2] -> return $ fromUWord [v1, v2]
-    _:_:e:_                    -> failNXT "getBatteryLevel" e
-    _                          -> fail "getBatteryLevel"
+    _:_:e:_                    -> liftIO $ failNXT "getBatteryLevel" e
+    _                          -> liftIO $ failNXT' "getBatteryLevel"
 
 -- Is battery rechargeable?
 isBatteryRechargeable :: NXT Bool
@@ -472,8 +531,8 @@ stopSoundPlayback' confirm = do
     receive <- receiveData
     case receive of
       [0x02, 0x0C, 0x00] -> return ()
-      [_, _, e]          -> failNXT "stopSoundPlayback" e
-      _                  -> fail "stopSoundPlayback"
+      [_, _, e]          -> liftIO $ failNXT "stopSoundPlayback" e
+      _                  -> liftIO $ failNXT' "stopSoundPlayback"
     where request = if confirm
                       then 0x00
                       else 0x80
@@ -501,8 +560,8 @@ keepAliveDuration = do
       let l = (fromULong limit) % 1000 -- l is in milliseconds
       modify (\s -> s { sleeptime = l })
       return l
-    _:_:e:_              -> failNXT "keepAliveDuration" e
-    _                    -> fail "keepAliveDuration"
+    _:_:e:_              -> liftIO $ failNXT "keepAliveDuration" e
+    _                    -> liftIO $ failNXT' "keepAliveDuration"
 
 -- Gets number of available bytes to read
 lowspeedGetStatus :: InputPort -> NXT Int
@@ -514,8 +573,8 @@ lowspeedGetStatus input = do
   case receive of
     [0x02, 0x0E, 0x00, bytes] -> return $ fromUByte [bytes]
     0x02:0x10:0x20:_          -> lowspeedGetStatus input -- pending communication transaction in progress, retrying
-    _:_:e:_                   -> failNXT "lowSpeedGetStatus" e
-    _                         -> fail "lowSpeedGetStatus"
+    _:_:e:_                   -> liftIO $ failNXT "lowSpeedGetStatus" e
+    _                         -> liftIO $ failNXT' "lowSpeedGetStatus"
 
 -- Writes data
 -- Rx data length must be specified in the write command since reading from the
@@ -538,9 +597,9 @@ lowspeedWrite' confirm input rx txdata
         receive <- receiveData
         case receive of
           [0x02, 0x0F, 0x00] -> return ()
-          [_, _, e]          -> failNXT "lowspeedWrite" e
-          _                  -> fail "lowspeedWrite"
-  | otherwise                       = throw $ PatternMatchFail "lowspeedWrite"
+          [_, _, e]          -> liftIO $ failNXT "lowspeedWrite" e
+          _                  -> liftIO $ failNXT' "lowspeedWrite"
+  | otherwise                       = liftIO . throwIO $ PatternMatchFail "lowspeedWrite"
     where request = if confirm
                       then 0x00
                       else 0x80
@@ -559,8 +618,8 @@ lowspeedRead input = do
     0x02:0x10:0x00:rx:rxdata
       | length rxdata == 16 && rx <= 16 -> return $ take (fromUByte [rx]) rxdata
     0x02:0x10:0x20:_                    -> lowspeedRead input -- pending communication transaction in progress, retrying
-    _:_:e:_                             -> failNXT "lowSpeedRead" e
-    _                                   -> fail "lowSpeedRead"
+    _:_:e:_                             -> liftIO $ failNXT "lowSpeedRead" e
+    _                                   -> liftIO $ failNXT' "lowSpeedRead"
 
 -- Gets current program name
 getCurrentProgramName :: NXT (Maybe String)
@@ -572,8 +631,8 @@ getCurrentProgramName = do
   case receive of
     0x02:0x11:0x00:filename | length filename == 20 -> return $ Just $ dataToString0 filename
     0x02:0x11:0xEC:_                                -> return Nothing
-    _:_:e:_                                         -> failNXT "getCurrentProgramName" e
-    _                                               -> fail "getCurrentProgramName"
+    _:_:e:_                                         -> liftIO $ failNXT "getCurrentProgramName" e
+    _                                               -> liftIO $ failNXT' "getCurrentProgramName"
 
 -- Reads a message
 messageRead :: RemoteInbox -> Bool -> NXT String
@@ -586,8 +645,8 @@ messageRead inbox remove = do
   case receive of
     0x02:0x13:0x00:inbox'':size:message
       | inbox'' == inbox' && length message == 59 && size <= 59 -> return $ dataToString0 message
-    _:_:e:_                                                     -> failNXT "messageRead" e
-    _                                                           -> fail "messageRead"
+    _:_:e:_                                                     -> liftIO $ failNXT "messageRead" e
+    _                                                           -> liftIO $ failNXT' "messageRead"
 
 -- Stops all NXT activities: stops motors and disables sensors
 stopEverything :: NXT ()
@@ -613,8 +672,8 @@ openWrite filename filesize = do
   receive <- receiveData
   case receive of
     [0x02, 0x81, 0x00, h] -> return $ fromUByte [h]
-    _:_:e:_               -> failNXT "openWrite" e
-    _                     -> fail "openWrite"
+    _:_:e:_               -> liftIO $ failNXT "openWrite" e
+    _                     -> liftIO $ failNXT' "openWrite"
 
 -- Opens a file for writing a linear contiguous block of flash memory (required for user programs and certain data files)
 openWriteLinear :: FileName -> FileSize -> NXT FileHandle
@@ -625,8 +684,8 @@ openWriteLinear filename filesize = do
   receive <- receiveData
   case receive of
     [0x02, 0x89, 0x00, h] -> return $ fromUByte [h]
-    _:_:e:_               -> failNXT "openWriteLinear" e
-    _                     -> fail "openWriteLinear"
+    _:_:e:_               -> liftIO $ failNXT "openWriteLinear" e
+    _                     -> liftIO $ failNXT' "openWriteLinear"
 
 -- Writes data to a file
 -- Data length is limited to 61 bytes per command
@@ -648,9 +707,9 @@ write' confirm filehandle filedata
         case receive of
           [0x02, 0x83, 0x00, h, bw1, bw2]
             | fromUByte [h] == filehandle && length filedata == fromUWord [bw1, bw2] -> return ()
-          _:_:e:_                                                                    -> failNXT "write" e
-          _                                                                          -> fail "write"
-  | otherwise             = throw $ PatternMatchFail "write"
+          _:_:e:_                                                                    -> liftIO $ failNXT "write" e
+          _                                                                          -> liftIO $ failNXT' "write"
+  | otherwise             = liftIO . throwIO $ PatternMatchFail "write"
     where request = if confirm
                       then 0x01
                       else 0x81
@@ -672,8 +731,8 @@ close' confirm filehandle = do
     case receive of
       [0x02, 0x84, 0x00, h]
         | fromUByte [h] == filehandle -> return ()
-      _:_:e:_                         -> failNXT "close" e
-      _                               -> fail "close"
+      _:_:e:_                         -> liftIO $ failNXT "close" e
+      _                               -> liftIO $ failNXT' "close"
     where request = if confirm
                       then 0x01
                       else 0x81
@@ -701,10 +760,10 @@ delete' confirm existence filename = do
       0x02:0x85:0x00:f
         | dataToString0 f == filename -> return ()
       0x02:0x85:0x87:_                -> if existence
-                                           then failNXT "delete" 0x87
+                                           then liftIO $ failNXT "delete" 0x87
                                            else return ()
-      _:_:e:_                         -> failNXT "delete" e
-      _                               -> fail "delete"
+      _:_:e:_                         -> liftIO $ failNXT "delete" e
+      _                               -> liftIO $ failNXT' "delete"
     where request = if confirm
                       then 0x01
                       else 0x81
@@ -724,8 +783,8 @@ requestFirstModule modulename = do
                                        size      = fromULong . take 4 . drop 24 $ values
                                        iomapsize = fromUWord . take 2 . drop 28 $ values
     0x02:0x90:0x90:h:_      -> return (fromUByte [h], Nothing) -- module not found
-    _:_:e:_                 -> failNXT "requestFirstModule" e
-    _                       -> fail "requestFirstModule"
+    _:_:e:_                 -> liftIO $ failNXT "requestFirstModule" e
+    _                       -> liftIO $ failNXT' "requestFirstModule"
 
 -- Requests information about the next module matching previously requested module name (which can be a wild card)
 requestNextModule :: ModuleHandle -> NXT (ModuleHandle, Maybe ModuleInfo)
@@ -742,8 +801,8 @@ requestNextModule modulehandle = do
                                        size      = fromULong . take 4 . drop 24 $ values
                                        iomapsize = fromUWord . take 2 . drop 28 $ values
     0x02:0x91:0x90:h:_      -> return (fromUByte [h], Nothing) -- module not found
-    _:_:e:_                 -> failNXT "requestNextModule" e
-    _                       -> fail "requestNextModule"
+    _:_:e:_                 -> liftIO $ failNXT "requestNextModule" e
+    _                       -> liftIO $ failNXT' "requestNextModule"
 
 -- Closes previously requested module information
 closeModuleHandle :: ModuleHandle -> NXT ()
@@ -763,8 +822,8 @@ closeModuleHandle' confirm modulehandle = do
     case receive of
       [0x02, 0x92, 0x00, h]
         | fromUByte [h] == modulehandle -> return ()
-      _:_:e:_                           -> failNXT "closeModuleHandle" e
-      _                                 -> fail "closeModuleHandle"
+      _:_:e:_                           -> liftIO $ failNXT "closeModuleHandle" e
+      _                                 -> liftIO $ failNXT' "closeModuleHandle"
     where request = if confirm
                       then 0x01
                       else 0x81
@@ -801,9 +860,9 @@ readIOMap moduleid offset len
       case receive of
         0x02:0x94:0x00:mid1:mid2:mid3:mid4:r1:r2:values
           | fromULong [mid1, mid2, mid3, mid4] == moduleid && fromUWord [r1, r2] == len -> return values
-        _:_:e:_                                                                         -> failNXT "readIOMap" e
-        _                                                                               -> fail "readIOMap"
-  | otherwise                 = throw $ PatternMatchFail "readIOMap"
+        _:_:e:_                                                                         -> liftIO $ failNXT "readIOMap" e
+        _                                                                               -> liftIO $ failNXT' "readIOMap"
+  | otherwise                 = liftIO . throwIO $ PatternMatchFail "readIOMap"
 
 -- Writes data to an IO map of a module
 -- Data length is limited to 54 bytes per command
@@ -825,9 +884,9 @@ writeIOMap' confirm moduleid offset mapdata
         case receive of
           [0x02, 0x95, 0x00, mid1, mid2, mid3, mid4, w1, w2]
             | fromULong [mid1, mid2, mid3, mid4] == moduleid && fromUWord [w1, w2] == length mapdata -> return ()
-          _:_:e:_                                                                                    -> failNXT "writeIOMap" e
-          _                                                                                          -> fail "writeIOMap"
-  | otherwise                           = throw $ PatternMatchFail "writeIOMap"
+          _:_:e:_                                                                                    -> liftIO $ failNXT "writeIOMap" e
+          _                                                                                          -> liftIO $ failNXT' "writeIOMap"
+  | otherwise                           = liftIO . throwIO $ PatternMatchFail "writeIOMap"
     where request = if confirm
                       then 0x01
                       else 0x81

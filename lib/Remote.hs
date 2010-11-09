@@ -1,4 +1,10 @@
-module NXT.Remote where
+module NXT.Remote (
+  sendRemoteCommand,
+  startRemoteProgram,
+  stopRemoteProgram,
+  motorControlSend,
+  motorControlReceive
+) where
 
 import Control.Exception
 import Control.Monad.State

@@ -114,3 +114,8 @@ type IOMapData = [Word8]
 
 data RemoteCommandType = MoveFor OutputPower TachoLimit | SetTo OutputPower TachoCount deriving (Eq, Show)
 data RemoteCommand = RemoteCommand [OutputPort] RemoteCommandType deriving (Eq, Show)
+
+type DeviceAddress = Word8
+type Command = Word8
+
+type Measurement = Int

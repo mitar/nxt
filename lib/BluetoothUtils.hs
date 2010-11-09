@@ -1,6 +1,10 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module NXT.BluetoothUtils (bluetoothRSSI, bluetoothLinkQuality, bluetoothAddress) where
+module NXT.BluetoothUtils (
+  bluetoothRSSI,
+  bluetoothLinkQuality,
+  bluetoothAddress
+) where
 
 import Control.Monad.State
 import Foreign
@@ -11,10 +15,10 @@ import NXT.NXT
 import NXT.Types
 
 -- Foreign function call for C function which returns RSSI Bluetooth value of a connection to a given Bluetooth address
-foreign import ccall unsafe "blue.h" rssi :: CString -> IO CInt
+foreign import ccall unsafe "rssi" rssi :: CString -> IO CInt
 
 -- Foreign function call for C function which returns link quality Bluetooth value of a connection to a given Bluetooth address
-foreign import ccall unsafe "blue.h" lq :: CString -> IO CInt
+foreign import ccall unsafe "lq" lq :: CString -> IO CInt
 
 -- As defined in blue.h
 blueError :: Int
