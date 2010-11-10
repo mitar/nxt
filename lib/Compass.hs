@@ -68,7 +68,7 @@ csGetSensorType input = csReadString input 0x10 8
 -- Configuration
 
 csSetMode :: InputPort -> Mode -> NXT ()
-csSetMode input mode = do
+csSetMode input mode =
   lowspeedWriteConfirm input 0 $ [deviceAddress, 0x41] ++ command
     where command = case mode of
                       AutoTrigOn       -> [0x41, 0x02]

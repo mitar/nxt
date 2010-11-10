@@ -129,21 +129,21 @@ usSetCommandState :: InputPort -> CommandState -> NXT ()
 usSetCommandState input state = lowspeedWriteConfirm input 0 [deviceAddress, 0x41, fromIntegral . fromEnum $ state]
 
 usSetContinuousInterval :: InputPort -> ContinuousInterval -> NXT ()
-usSetContinuousInterval input interval = lowspeedWrite input 0 $ [deviceAddress, 0x40] ++ (toUByte interval)
+usSetContinuousInterval input interval = lowspeedWrite input 0 $ [deviceAddress, 0x40] ++ toUByte interval
 
 usSetActualZero :: InputPort -> Zero -> NXT ()
-usSetActualZero input zero = lowspeedWrite input 0 $ [deviceAddress, 0x50] ++ (toUByte zero)
+usSetActualZero input zero = lowspeedWrite input 0 $ [deviceAddress, 0x50] ++ toUByte zero
 
 usSetActualScaleFactor :: InputPort -> ScaleFactor -> NXT ()
-usSetActualScaleFactor input factor = lowspeedWrite input 0 $ [deviceAddress, 0x51] ++ (toUByte factor)
+usSetActualScaleFactor input factor = lowspeedWrite input 0 $ [deviceAddress, 0x51] ++ toUByte factor
 
 usSetActualScaleDivisor :: InputPort -> ScaleDivisor -> NXT ()
-usSetActualScaleDivisor input divisor = lowspeedWrite input 0 $ [deviceAddress, 0x52] ++ (toUByte divisor)
+usSetActualScaleDivisor input divisor = lowspeedWrite input 0 $ [deviceAddress, 0x52] ++ toUByte divisor
 
 -- Measurement
 
 usGetMeasurement :: InputPort -> MeasurementNumber -> NXT (Maybe Measurement)
-usGetMeasurement input number | number >= 0 && number < 8 = do measurement <- usReadByte input $ 0x42 + (fromIntegral number)
+usGetMeasurement input number | number >= 0 && number < 8 = do measurement <- usReadByte input $ 0x42 + fromIntegral number
                                                                if measurement == 0xFF
                                                                  then return Nothing
                                                                  else return $ Just measurement

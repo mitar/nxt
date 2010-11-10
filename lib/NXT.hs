@@ -175,7 +175,7 @@ getDeviceInfo = do
       return $ DeviceInfo name' btaddress btstrength flashfree
         where (name, info') = splitAt 15 info
               name' = dataToString0 name
-              btaddress = map toUpper . concat . intersperse ":" . map (printf "%02x") . take 6 $ info'
+              btaddress = map toUpper . intercalate ":" . map (printf "%02x") . take 6 $ info'
               -- 7th byte not used?
               btstrength = fromULong . take 4 . drop 7 $ info'
               flashfree = fromULong . take 4 . drop 11 $ info'
@@ -193,7 +193,7 @@ startProgramConfirm = startProgram' True
 startProgram' :: Bool -> FileName -> NXT ()
 startProgram' confirm filename = do
   when debug $ liftIO . hPutStrLn stderr $ "startprogram"
-  let send = [request, 0x00] ++ (nameToData filename)
+  let send = [request confirm, 0x00] ++ nameToData filename
   sendData send
   when confirm $ do
     receive <- receiveData
@@ -201,9 +201,6 @@ startProgram' confirm filename = do
       [0x02, 0x00, 0x00] -> return ()
       [_, _, e]          -> liftIO $ failNXT "startProgram" e
       _                  -> liftIO $ failNXT' "startProgram"
-    where request = if confirm
-                      then 0x00
-                      else 0x80
 
 -- Stops a program
 stopProgram :: NXT ()
@@ -220,20 +217,15 @@ stopProgramExisting = delete' True True
 stopProgram' :: Bool -> Bool -> NXT ()
 stopProgram' confirm running = do
   when debug $ liftIO . hPutStrLn stderr $ "stopprogram"
-  let send = [request, 0x01]
+  let send = [request confirm, 0x01]
   sendData send
   when confirm $ do
     receive <- receiveData
     case receive of
       [0x02, 0x01, 0x00] -> return ()
-      [0x02, 0x01, 0xEC] -> if running
-                              then liftIO $ failNXT "stopProgram" 0xEC
-                              else return ()
+      [0x02, 0x01, 0xEC] -> when running $ liftIO $ failNXT "stopProgram" 0xEC
       [_, _, e]          -> liftIO $ failNXT "stopProgram" e
       _                  -> liftIO $ failNXT' "stopProgram"
-    where request = if confirm
-                      then 0x00
-                      else 0x80
 
 -- Plays a sound file
 playSoundFile :: Bool -> FileName -> NXT ()
@@ -246,7 +238,7 @@ playSoundFileConfirm = playSoundFile' True
 playSoundFile' :: Bool -> Bool -> FileName -> NXT ()
 playSoundFile' confirm loop filename = do
   when debug $ liftIO . hPutStrLn stderr $ "playsoundfile"
-  let send = [request, 0x02, fromIntegral . fromEnum $ loop] ++ (nameToData filename)
+  let send = [request confirm, 0x02, fromIntegral . fromEnum $ loop] ++ nameToData filename
   sendData send
   when confirm $ do
     receive <- receiveData
@@ -254,15 +246,12 @@ playSoundFile' confirm loop filename = do
       [0x02, 0x02, 0x00] -> return ()
       [_, _, e]          -> liftIO $ failNXT "playSoundFile" e
       _                  -> liftIO $ failNXT' "playSoundFile"
-    where request = if confirm
-                      then 0x00
-                      else 0x80
 
 -- Plays a tone with given frequency (in Hz) for given duration (in s)
 playTone :: Frequency -> Duration -> NXT ()
 playTone frequency duration = do
   when debug $ liftIO . hPutStrLn stderr $ "playtone"
-  let send = [0x80, 0x03] ++ (toUWord frequency) ++ (toUWord $ toMilliseconds duration)
+  let send = [0x80, 0x03] ++ toUWord frequency ++ toUWord (toMilliseconds duration)
   sendData send
     where toMilliseconds :: Duration -> Integer -- duration is in seconds, but NXT requires milliseconds
           toMilliseconds d = floor (d * 1000)
@@ -279,7 +268,7 @@ setOutputState' :: Bool -> OutputPort -> OutputPower -> [OutputMode] -> Regulati
 setOutputState' confirm output power mode regulation turn runstate tacholimit
   | power >= -100 && power <= 100 && turn >= -100 && turn <= 100 = do
       when debug $ liftIO . hPutStrLn stderr $ "setoutputstate"
-      let send = [request, 0x04, fromIntegral . fromEnum $ output] ++ (toSByte power) ++ [modebyte, regulation'] ++ (toSByte turn) ++ [runstate'] ++ (toULong tacholimit)
+      let send = [request confirm, 0x04, fromIntegral . fromEnum $ output] ++ toSByte power ++ [modebyte, regulation'] ++ toSByte turn ++ [runstate'] ++ toULong tacholimit
       sendData send
       when confirm $ do
         receive <- receiveData
@@ -288,10 +277,7 @@ setOutputState' confirm output power mode regulation turn runstate tacholimit
           [_, _, e]          -> liftIO $ failNXT "setOutputState" e
           _                  -> liftIO $ failNXT' "setOutputState"
   | otherwise                                                    = liftIO . throwIO $ PatternMatchFail "setOutputState"
-    where request     = if confirm
-                          then 0x00
-                          else 0x80
-          modebyte    = foldl (.|.) 0x00 . map convmode $ mode
+    where modebyte    = foldl (.|.) 0x00 . map convmode $ mode
             where convmode m = case m of
                                  MotorOn -> 0x01
                                  Brake -> 0x02
@@ -319,15 +305,9 @@ getOutputState output = do
       | length values == 16 && fromEnum output == fromIntegral port ->
           return $ OutputState output (fromSByte [power]) mode regulation' (fromSByte [turn]) runstate' tacholimit tachocount blocktachocount rotationcount
             where mode = motoron ++ brake ++ regulated
-                  motoron = if testBit modebyte 0
-                              then [MotorOn]
-                              else []
-                  brake = if testBit modebyte 1
-                            then [Brake]
-                            else []
-                  regulated = if testBit modebyte 2
-                                then [Regulated]
-                                else []
+                  motoron = [MotorOn | testBit modebyte 0]
+                  brake = [Brake | testBit modebyte 1]
+                  regulated = [Regulated | testBit modebyte 2]
                   regulation' = case regulation of
                                   0x00 -> RegulationModeIdle
                                   0x01 -> RegulationModeMotorSpeed
@@ -358,7 +338,7 @@ setInputModeConfirm = setInputMode' True
 setInputMode' :: Bool -> InputPort -> SensorType -> SensorMode -> NXT ()
 setInputMode' confirm input sensortype sensormode = do
   when debug $ liftIO . hPutStrLn stderr $ "setinputmode"
-  let send = [request, 0x05, fromIntegral . fromEnum $ input, sensortype', sensormode']
+  let send = [request confirm, 0x05, fromIntegral . fromEnum $ input, sensortype', sensormode']
   sendData send
   when confirm $ do
     receive <- receiveData
@@ -366,10 +346,7 @@ setInputMode' confirm input sensortype sensormode = do
       [0x02, 0x05, 0x00] -> return ()
       [_, _, e]          -> liftIO $ failNXT "setInputMode" e
       _                  -> liftIO $ failNXT' "setInputMode"
-    where request     = if confirm
-                          then 0x00
-                          else 0x80
-          sensortype' = case sensortype of
+    where sensortype' = case sensortype of
                           NoSensor -> 0x00
                           Switch -> 0x01
                           Temperature -> 0x02
@@ -469,7 +446,7 @@ messageWrite' confirm inbox message
   | length message <= 58 = do
       when debug $ liftIO . hPutStrLn stderr $ "messagewrite"
       let message' = messageToData message
-          send = [request, 0x09, fromIntegral . fromEnum $ inbox] ++ (toUByte . length $ message') ++ message'
+          send = [request confirm, 0x09, fromIntegral . fromEnum $ inbox] ++ (toUByte . length $ message') ++ message'
       sendData send
       when confirm $ do
         receive <- receiveData
@@ -478,9 +455,6 @@ messageWrite' confirm inbox message
           [_, _, e]          -> liftIO $ failNXT "messageWrite" e
           _                  -> liftIO $ failNXT' "messageWrite"
   | otherwise             = liftIO . throwIO $ PatternMatchFail "messageWrite"
-    where request = if confirm
-                      then 0x00
-                      else 0x80
 
 -- Resets motor position
 resetMotorPosition :: OutputPort -> MotorReset -> NXT ()
@@ -489,7 +463,7 @@ resetMotorPosition output reset = do
   case reset of
     InternalPosition -> do
       mid <- getModuleID "Output.mod"
-      writeIOMap (fromJust mid) ((fromEnum output) * 32 + 18) [0x08] -- flags field is at offset 18, output block is 32 bytes long, UPDATE_RESET_COUNT is 0x08
+      writeIOMap (fromJust mid) (fromEnum output * 32 + 18) [0x08] -- flags field is at offset 18, output block is 32 bytes long, UPDATE_RESET_COUNT is 0x08
     _                -> do
       let send = [0x80, 0x0A, fromIntegral . fromEnum $ output, fromIntegral . fromEnum $ reset]
       sendData send
@@ -525,7 +499,7 @@ stopSoundPlaybackConfirm = stopSoundPlayback' True
 stopSoundPlayback' :: Bool -> NXT ()
 stopSoundPlayback' confirm = do
   when debug $ liftIO . hPutStrLn stderr $ "stopsoundplayback"
-  let send = [request, 0x0C]
+  let send = [request confirm, 0x0C]
   sendData send
   when confirm $ do
     receive <- receiveData
@@ -533,15 +507,12 @@ stopSoundPlayback' confirm = do
       [0x02, 0x0C, 0x00] -> return ()
       [_, _, e]          -> liftIO $ failNXT "stopSoundPlayback" e
       _                  -> liftIO $ failNXT' "stopSoundPlayback"
-    where request = if confirm
-                      then 0x00
-                      else 0x80
 
 -- Sends a keep alive (turned on) packet
 keepAlive :: NXT ()
 keepAlive = do
   when debug $ liftIO . hPutStrLn stderr $ "keepalive"
-  current <- liftIO $ getPOSIXTime
+  current <- liftIO getPOSIXTime
   modify (\s -> s { lastkeepalive = current })
   let send = [0x80, 0x0D]
   sendData send
@@ -550,14 +521,14 @@ keepAlive = do
 keepAliveDuration :: NXT Duration
 keepAliveDuration = do
   when debug $ liftIO . hPutStrLn stderr $ "keepaliveduration"
-  current <- liftIO $ getPOSIXTime
+  current <- liftIO getPOSIXTime
   modify (\s -> s { lastkeepalive = current })
   let send = [0x00, 0x0D]
   sendData send
   receive <- receiveData
   case receive of
     0x02:0x0D:0x00:limit -> do
-      let l = (fromULong limit) % 1000 -- l is in milliseconds
+      let l = fromULong limit % 1000 -- l is in milliseconds
       modify (\s -> s { sleeptime = l })
       return l
     _:_:e:_              -> liftIO $ failNXT "keepAliveDuration" e
@@ -591,7 +562,7 @@ lowspeedWrite' :: Bool -> InputPort -> RxDataLength -> TxData -> NXT ()
 lowspeedWrite' confirm input rx txdata
   | length txdata <= 16 && rx <= 16 = do
       when debug $ liftIO . hPutStrLn stderr $ "lowspeedwrite"
-      let send = [request, 0x0F, fromIntegral . fromEnum $ input] ++ (toUByte . length $ txdata) ++ (toUByte rx) ++ txdata
+      let send = [request confirm, 0x0F, fromIntegral . fromEnum $ input] ++ (toUByte . length $ txdata) ++ toUByte rx ++ txdata
       sendData send
       when confirm $ do
         receive <- receiveData
@@ -600,9 +571,6 @@ lowspeedWrite' confirm input rx txdata
           [_, _, e]          -> liftIO $ failNXT "lowspeedWrite" e
           _                  -> liftIO $ failNXT' "lowspeedWrite"
   | otherwise                       = liftIO . throwIO $ PatternMatchFail "lowspeedWrite"
-    where request = if confirm
-                      then 0x00
-                      else 0x80
 
 -- Reads data
 -- The protocol does not support variable-length return packages so the response
@@ -667,7 +635,7 @@ shutdown = do
 openWrite :: FileName -> FileSize -> NXT FileHandle
 openWrite filename filesize = do
   when debug $ liftIO . hPutStrLn stderr $ "openwrite"
-  let send = [0x01, 0x81] ++ (nameToData filename) ++ (toULong filesize)
+  let send = [0x01, 0x81] ++ nameToData filename ++ toULong filesize
   sendData send
   receive <- receiveData
   case receive of
@@ -679,7 +647,7 @@ openWrite filename filesize = do
 openWriteLinear :: FileName -> FileSize -> NXT FileHandle
 openWriteLinear filename filesize = do
   when debug $ liftIO . hPutStrLn stderr $ "openwritelinear"
-  let send = [0x01, 0x89] ++ (nameToData filename) ++ (toULong filesize)
+  let send = [0x01, 0x89] ++ nameToData filename ++ toULong filesize
   sendData send
   receive <- receiveData
   case receive of
@@ -700,7 +668,7 @@ write' :: Bool -> FileHandle -> FileData -> NXT ()
 write' confirm filehandle filedata
   | length filedata <= 61 = do
       when debug $ liftIO . hPutStrLn stderr $ "write"
-      let send = [request, 0x83] ++ (toUByte filehandle) ++ filedata
+      let send = [request' confirm, 0x83] ++ toUByte filehandle ++ filedata
       sendData send
       when confirm $ do
         receive <- receiveData
@@ -710,9 +678,7 @@ write' confirm filehandle filedata
           _:_:e:_                                                                    -> liftIO $ failNXT "write" e
           _                                                                          -> liftIO $ failNXT' "write"
   | otherwise             = liftIO . throwIO $ PatternMatchFail "write"
-    where request = if confirm
-                      then 0x01
-                      else 0x81
+
 -- Closes a file
 close :: FileHandle -> NXT ()
 close = close' False
@@ -724,7 +690,7 @@ closeConfirm = close' True
 close' :: Bool -> FileHandle -> NXT ()
 close' confirm filehandle = do
   when debug $ liftIO . hPutStrLn stderr $ "close"
-  let send = [request, 0x84] ++ (toUByte filehandle)
+  let send = [request' confirm, 0x84] ++ toUByte filehandle
   sendData send
   when confirm $ do
     receive <- receiveData
@@ -733,9 +699,6 @@ close' confirm filehandle = do
         | fromUByte [h] == filehandle -> return ()
       _:_:e:_                         -> liftIO $ failNXT "close" e
       _                               -> liftIO $ failNXT' "close"
-    where request = if confirm
-                      then 0x01
-                      else 0x81
 
 -- Deletes a file
 delete :: FileName -> NXT ()
@@ -752,27 +715,22 @@ deleteExisting = delete' True True
 delete' :: Bool -> Bool -> FileName -> NXT ()
 delete' confirm existence filename = do
   when debug $ liftIO . hPutStrLn stderr $ "delete"
-  let send = [request, 0x85] ++ (nameToData filename)
+  let send = [request' confirm, 0x85] ++ nameToData filename
   sendData send
   when confirm $ do
     receive <- receiveData
     case receive of
       0x02:0x85:0x00:f
         | dataToString0 f == filename -> return ()
-      0x02:0x85:0x87:_                -> if existence
-                                           then liftIO $ failNXT "delete" 0x87
-                                           else return ()
+      0x02:0x85:0x87:_                -> when existence $ liftIO $ failNXT "delete" 135
       _:_:e:_                         -> liftIO $ failNXT "delete" e
       _                               -> liftIO $ failNXT' "delete"
-    where request = if confirm
-                      then 0x01
-                      else 0x81
 
 -- Requests information about the first module matching given module name (which can be a wild card)
 requestFirstModule :: ModuleName -> NXT (ModuleHandle, Maybe ModuleInfo)
 requestFirstModule modulename = do
   when debug $ liftIO . hPutStrLn stderr $ "requestfirstmodule"
-  let send = [0x01, 0x90] ++ (nameToData modulename)
+  let send = [0x01, 0x90] ++ nameToData modulename
   sendData send
   receive <- receiveData
   case receive of
@@ -790,7 +748,7 @@ requestFirstModule modulename = do
 requestNextModule :: ModuleHandle -> NXT (ModuleHandle, Maybe ModuleInfo)
 requestNextModule modulehandle = do
   when debug $ liftIO . hPutStrLn stderr $ "requestnextmodule"
-  let send = [0x01, 0x91] ++ (toUByte modulehandle)
+  let send = [0x01, 0x91] ++ toUByte modulehandle
   sendData send
   receive <- receiveData
   case receive of
@@ -815,7 +773,7 @@ closeModuleHandleConfirm = closeModuleHandle' True
 closeModuleHandle' :: Bool -> ModuleHandle -> NXT ()
 closeModuleHandle' confirm modulehandle = do
   when debug $ liftIO . hPutStrLn stderr $ "closemodulehandle"
-  let send = [request, 0x92] ++ (toUByte modulehandle)
+  let send = [request' confirm, 0x92] ++ toUByte modulehandle
   sendData send
   when confirm $ do
     receive <- receiveData
@@ -824,9 +782,6 @@ closeModuleHandle' confirm modulehandle = do
         | fromUByte [h] == modulehandle -> return ()
       _:_:e:_                           -> liftIO $ failNXT "closeModuleHandle" e
       _                                 -> liftIO $ failNXT' "closeModuleHandle"
-    where request = if confirm
-                      then 0x01
-                      else 0x81
 
 -- Gets information about all modules matching given module name (which can be a wild card)
 listModules :: ModuleName -> NXT [ModuleInfo]
@@ -854,7 +809,7 @@ readIOMap :: ModuleID -> IOMapOffset -> IOMapLength -> NXT IOMapData
 readIOMap moduleid offset len
   | offset >= 0 && len <= 119 = do
       when debug $ liftIO . hPutStrLn stderr $ "readiomap"
-      let send = [0x01, 0x94] ++ (toULong moduleid) ++ (toUWord offset) ++ (toUWord len)
+      let send = [0x01, 0x94] ++ toULong moduleid ++ toUWord offset ++ toUWord len
       sendData send
       receive <- receiveData
       case receive of
@@ -877,7 +832,7 @@ writeIOMap' :: Bool -> ModuleID -> IOMapOffset -> IOMapData -> NXT ()
 writeIOMap' confirm moduleid offset mapdata
   | offset >= 0 && length mapdata <= 54 = do
       when debug $ liftIO . hPutStrLn stderr $ "writeiomap"
-      let send = [request, 0x95] ++ (toULong moduleid) ++ (toUWord offset) ++ (toUWord $ length mapdata) ++ mapdata
+      let send = [request' confirm, 0x95] ++ toULong moduleid ++ toUWord offset ++ toUWord (length mapdata) ++ mapdata
       sendData send
       when confirm $ do
         receive <- receiveData
@@ -887,26 +842,29 @@ writeIOMap' confirm moduleid offset mapdata
           _:_:e:_                                                                                    -> liftIO $ failNXT "writeIOMap" e
           _                                                                                          -> liftIO $ failNXT' "writeIOMap"
   | otherwise                           = liftIO . throwIO $ PatternMatchFail "writeIOMap"
-    where request = if confirm
-                      then 0x01
-                      else 0x81
 
 -- Gets an ID of a module matching given module name
 -- Hopefully retrieves it from a cache of previous requests
 getModuleID :: ModuleName -> NXT (Maybe ModuleID)
-getModuleID modulename = do
-  if '*' `elem` modulename
-    then return Nothing -- we do not allow wild cards
-    else do
-      mods <- gets modules
-      let modulename' = map toLower modulename
-      case modulename' `lookup` mods of
-        Just (ModuleInfo _ mid _ _) -> return $ Just mid
-        Nothing                     -> do
-          (h, mi) <- requestFirstModule modulename'
-          closeModuleHandle h
-          case mi of
-            Just mi'@(ModuleInfo _ mid _ _) -> do
-              modify (\s -> s { modules = (modulename', mi'):mods })
-              return $ Just mid
-            Nothing                         -> return Nothing
+getModuleID modulename | '*' `elem` modulename = return Nothing -- we do not allow wild cards
+                       | otherwise = do
+                           mods <- gets modules
+                           let modulename' = map toLower modulename
+                           case modulename' `lookup` mods of
+                             Just (ModuleInfo _ mid _ _) -> return $ Just mid
+                             Nothing                     -> do
+                               (h, mi) <- requestFirstModule modulename'
+                               closeModuleHandle h
+                               case mi of
+                                 Just mi'@(ModuleInfo _ mid _ _) -> do
+                                   modify (\s -> s { modules = (modulename', mi'):mods })
+                                   return $ Just mid
+                                 Nothing                         -> return Nothing
+
+request :: Bool -> Word8 
+request confirm | confirm   = 0x00
+                | otherwise = 0x80
+
+request' :: Bool -> Word8 
+request' confirm | confirm   = 0x00
+                 | otherwise = 0x80

@@ -18,14 +18,14 @@ data Option = Help deriving (Eq, Show)
 
 options :: [OptDescr Option]
 options = [
-    Option ['h'] ["help"] (NoArg Help) "show this help"
+    Option "h" ["help"] (NoArg Help) "show this help"
   ]
 
 upload :: IO ()
 upload = do
   programName <- getProgName
   let header = programName ++ " [option ...] <file ...>" ++ "\n\nOptions:"
-      usage  = "Usage:\n" ++ (usageInfo header options)
+      usage  = "Usage:\n" ++ usageInfo header options
   
   args <- getArgs
   (opts, files) <- case getOpt Permute options args of

@@ -39,9 +39,9 @@ bluetoothRSSIAddr addr = do
   let ret' = fromIntegral ret
   case ret' of
     _ | ret' == blueError        -> error "Could not get connection's RSSI"
-    _ | ret' == blueNotConnected -> error "Connection not established"
-    _ | ret' == blueNotSupported -> error "Not supported on this system"
-    _ | otherwise                -> return ret'
+      | ret' == blueNotConnected -> error "Connection not established"
+      | ret' == blueNotSupported -> error "Not supported on this system"
+      | otherwise                -> return ret'
 
 bluetoothLinkQuality :: NXT Int
 bluetoothLinkQuality = do
@@ -54,9 +54,9 @@ bluetoothLinkQualityAddr addr = do
   let ret' = fromIntegral ret
   case ret' of
     _ | ret' == blueError        -> error "Could not get connection's link quality"
-    _ | ret' == blueNotConnected -> error "Connection not established"
-    _ | ret' == blueNotSupported -> error "Not supported on this system"
-    _ | otherwise                -> return ret'
+      | ret' == blueNotConnected -> error "Connection not established"
+      | ret' == blueNotSupported -> error "Not supported on this system"
+      | otherwise                -> return ret'
 
 bluetoothAddress :: NXT BTAddress
 bluetoothAddress = do
