@@ -78,8 +78,8 @@ data SensorMode =
   | FahrenheitMode
   | AngleStepsMode -- reports scaled value as count of ticks on RCX-style rotation sensor
   -- two modes unnecessary?
-  -- | SlopeMask
-  -- | ModeMask
+  -- SlopeMask
+  -- ModeMask
   deriving (Eq, Show)
 type RawADValue = Int
 type NormalizedADValue = Int -- normalized A/D value, in [0, 1023] range

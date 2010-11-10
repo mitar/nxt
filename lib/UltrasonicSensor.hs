@@ -29,7 +29,6 @@ module NXT.NXTUltrasonicSensor (
 import Control.Exception
 import Control.Monad
 import Control.Monad.Trans
-import Data.Word
 
 import NXT.NXT
 import NXT.Data
@@ -62,7 +61,7 @@ usInit :: InputPort -> NXT ()
 usInit input = do
   setInputModeConfirm input Lowspeed9V RawMode
   ready <- lowspeedGetStatus input
-  when (ready > 0) $ do lowspeedRead input ; return () -- clears any possible pending data in the buffer
+  when (ready > 0) $ lowspeedRead input >> return () -- clears any possible pending data in the buffer
   usSetCommandState input WarmReset
 
 usReadByte :: Integral a => InputPort -> Command -> NXT a

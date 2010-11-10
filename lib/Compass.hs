@@ -11,7 +11,6 @@ module NXT.Compass (
 ) where
 
 import Control.Monad
-import Data.Word
 
 import NXT.NXT
 import NXT.Data
@@ -39,7 +38,7 @@ csInit :: InputPort -> NXT ()
 csInit input = do
   setInputModeConfirm input Lowspeed9V RawMode
   ready <- lowspeedGetStatus input
-  when (ready > 0) $ do lowspeedRead input ; return () -- clears any possible pending data in the buffer
+  when (ready > 0) $ lowspeedRead input >> return () -- clears any possible pending data in the buffer
   csSetMode input ResultInteger
 
 csReadByte :: Integral a => InputPort -> Command -> NXT a
