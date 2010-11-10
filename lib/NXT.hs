@@ -2,6 +2,7 @@
 
 module NXT.NXT (
   initSerialPort,
+  defaultDevice,
   initialize,
   terminate,
   getVersion,
@@ -93,18 +94,15 @@ foreign import ccall unsafe "initSerialPort" initSerialPort' :: Fd -> IO CInt
 initSerialPort :: Fd -> IO ()
 initSerialPort fd = throwErrnoIfMinus1_ "initSerialPort" $ initSerialPort' fd
 
--- TODO: Move to configuration file
-device :: FilePath -- serial port device file
---device = "/dev/tty.NatriX-DevB-1"
-device = "/dev/rfcomm0"
+defaultDevice :: FilePath
+defaultDevice = "/dev/rfcomm0"
 
--- TODO: Move to configuration file
 debug :: Bool
 debug = False
 
--- Opens and intializes serial port, installs signal handler so that ctrl-c closes the program gracefully
-initialize :: IO NXTState
-initialize = do
+-- Opens and intializes serial port
+initialize :: FilePath -> IO NXTState
+initialize device = do
   -- we have to block signals from interrupting openFd system call (fixed in GHC versions after 6.12.1)
   let signals = foldl (flip addSignal) emptySignalSet [virtualTimerExpired]
   blockSignals signals

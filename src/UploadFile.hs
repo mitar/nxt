@@ -4,6 +4,8 @@ module UploadFile (
 
 import Control.Exception
 import Control.Monad.State
+import Data.Maybe
+import Data.List
 import System.Console.GetOpt
 import System.Environment
 import System.Exit
@@ -14,11 +16,16 @@ import NXT.NXT
 import NXT.Data
 import NXT.Types
 
-data Option = Help deriving (Eq, Show)
+data Option = Help | Device FilePath deriving (Eq, Show)
+
+isDevice :: Option -> Bool
+isDevice (Device _) = True
+isDevice _          = False
 
 options :: [OptDescr Option]
 options = [
-    Option "h" ["help"] (NoArg Help) "show this help"
+    Option "h" ["help"] (NoArg Help) "show this help",
+    Option "d" ["device"] (ReqArg Device "filename") "serial port device"
   ]
 
 upload :: IO ()
@@ -42,7 +49,9 @@ upload = do
     hPutStrLn stderr $ "Error(s):\nno files to upload specified\n" ++ "\n" ++ usage
     exitWith $ ExitFailure 1
   
-  bracket initialize terminate (evalStateT (uploadFiles files))
+  let Device device = fromMaybe (Device defaultDevice) . find isDevice $ opts
+  
+  bracket (initialize device) terminate (evalStateT (uploadFiles files))
 
 uploadFiles :: [String] -> NXT ()
 uploadFiles args = do
