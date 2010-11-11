@@ -720,7 +720,7 @@ delete' confirm existence filename = do
     case receive of
       0x02:0x85:0x00:f
         | dataToString0 f == filename -> return ()
-      0x02:0x85:0x87:_                -> when existence $ liftIO $ failNXT "delete" 135
+      0x02:0x85:0x87:_                -> when existence $ liftIO $ failNXT "delete" 0x87
       _:_:e:_                         -> liftIO $ failNXT "delete" e
       _                               -> liftIO $ failNXT' "delete"
 
@@ -864,5 +864,5 @@ request confirm | confirm   = 0x00
                 | otherwise = 0x80
 
 request' :: Bool -> Word8 
-request' confirm | confirm   = 0x00
-                 | otherwise = 0x80
+request' confirm | confirm   = 0x01
+                 | otherwise = 0x81
