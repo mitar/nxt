@@ -1,4 +1,4 @@
-module NXT.Data (
+module Robotics.NXT.Data (
   fromUByte,
   fromUWord,
   fromULong,

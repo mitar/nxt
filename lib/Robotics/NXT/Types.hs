@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module NXT.Types where
+module Robotics.NXT.Types where
 
 import Control.Monad.State
 import Data.Int

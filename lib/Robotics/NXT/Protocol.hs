@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# CFILES ffi/initserial.c #-}
 
-module NXT.NXT (
+module Robotics.NXT.Protocol (
   initSerialPort,
   defaultDevice,
   initialize,
@@ -77,9 +78,9 @@ import System.Posix.Signals
 import System.Posix.Types
 import Text.Printf
 
-import NXT.Data
-import NXT.Errors
-import NXT.Types
+import Robotics.NXT.Data
+import Robotics.NXT.Errors
+import Robotics.NXT.Types
 
 -- Described in Lego Mindstorms NXT Bluetooth Developer Kit:
 --  Appendix 1 - Communication protocol

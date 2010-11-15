@@ -1,4 +1,4 @@
-module NXT.Remote (
+module Robotics.NXT.Remote (
   sendRemoteCommand,
   startRemoteProgram,
   stopRemoteProgram,
@@ -11,12 +11,12 @@ import Control.Monad.State
 import Data.Maybe
 import Text.Printf
 
-import NXT.NXT
-import NXT.Types
+import Robotics.NXT
 
 sendRemoteCommand :: RemoteCommand -> NXT ()
 sendRemoteCommand = messageWrite Inbox1 . encodeRemoteCommand
 
+-- TODO: Support also MotorControl messages
 encodeRemoteCommand :: RemoteCommand -> String
 encodeRemoteCommand (RemoteCommand ports command) =
   case command of

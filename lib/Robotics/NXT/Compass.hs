@@ -1,4 +1,4 @@
-module NXT.Compass (
+module Robotics.NXT.Compass (
   Mode(..),
   csInit,
   csReadByte,
@@ -12,9 +12,7 @@ module NXT.Compass (
 
 import Control.Monad
 
-import NXT.NXT
-import NXT.Data
-import NXT.Types
+import Robotics.NXT
 
 -- Described in CMPS-Nx-V20-User-Guide.pdf at www.mindsensors.com
 

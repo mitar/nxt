@@ -1,18 +1,21 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# CFILES ffi/blue.c #-}
 
-module NXT.BluetoothUtils (
+module Robotics.NXT.BluetoothUtils (
   bluetoothRSSI,
   bluetoothLinkQuality,
   bluetoothAddress
 ) where
 
+import Control.Exception
 import Control.Monad.State
 import Foreign
 import Foreign.C.String
 import Foreign.C.Types
 
-import NXT.NXT
-import NXT.Types
+import Robotics.NXT.Errors
+import Robotics.NXT.Protocol
+import Robotics.NXT.Types
 
 -- Foreign function call for C function which returns RSSI Bluetooth value of a connection to a given Bluetooth address
 foreign import ccall unsafe "rssi" rssi :: CString -> IO CInt
@@ -35,12 +38,12 @@ bluetoothRSSI = do
 
 bluetoothRSSIAddr :: BTAddress -> NXT Int
 bluetoothRSSIAddr addr = do
-  ret <- io $ withCString addr rssi
+  ret <- liftIO $ withCString addr rssi
   let ret' = fromIntegral ret
   case ret' of
-    _ | ret' == blueError        -> error "Could not get connection's RSSI"
-      | ret' == blueNotConnected -> error "Connection not established"
-      | ret' == blueNotSupported -> error "Not supported on this system"
+    _ | ret' == blueError        -> liftIO $ throwIO $ NXTException "Could not get connection's RSSI"
+      | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
+      | ret' == blueNotSupported -> liftIO $ throwIO $ NXTException "Not supported on this system"
       | otherwise                -> return ret'
 
 bluetoothLinkQuality :: NXT Int
@@ -50,12 +53,12 @@ bluetoothLinkQuality = do
 
 bluetoothLinkQualityAddr :: BTAddress -> NXT Int
 bluetoothLinkQualityAddr addr = do
-  ret <- io $ withCString addr lq
+  ret <- liftIO $ withCString addr lq
   let ret' = fromIntegral ret
   case ret' of
-    _ | ret' == blueError        -> error "Could not get connection's link quality"
-      | ret' == blueNotConnected -> error "Connection not established"
-      | ret' == blueNotSupported -> error "Not supported on this system"
+    _ | ret' == blueError        -> liftIO $ throwIO $ NXTException "Could not get connection's link quality"
+      | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
+      | ret' == blueNotSupported -> liftIO $ throwIO $ NXTException "Not supported on this system"
       | otherwise                -> return ret'
 
 bluetoothAddress :: NXT BTAddress

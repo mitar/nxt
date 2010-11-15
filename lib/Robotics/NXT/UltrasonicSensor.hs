@@ -1,4 +1,4 @@
-module NXT.NXTUltrasonicSensor (
+module Robotics.NXT.UltrasonicSensor (
   Zero,
   ScaleFactor,
   ScaleDivisor,
@@ -30,9 +30,7 @@ import Control.Exception
 import Control.Monad
 import Control.Monad.Trans
 
-import NXT.NXT
-import NXT.Data
-import NXT.Types
+import Robotics.NXT
 
 -- I2C communication with ultrasonics sensor is described in Lego Mindstorms NXT Hardware Developer Kit:
 --  Appendix 7 - Ultrasonic sensor I2C communication protocol

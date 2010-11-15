@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module NXT.Errors (
+module Robotics.NXT.Errors (
   failNXT,
   failNXT',
   NXTException(..)

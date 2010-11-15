@@ -1,5 +1,5 @@
-module UploadFile (
-  upload
+module Main (
+  main
 ) where
 
 import Control.Exception
@@ -12,9 +12,7 @@ import System.Exit
 import System.IO
 import System.FilePath
 
-import NXT.NXT
-import NXT.Data
-import NXT.Types
+import Robotics.NXT
 
 data Option = Help | Device FilePath deriving (Eq, Show)
 
@@ -28,8 +26,8 @@ options = [
     Option "d" ["device"] (ReqArg Device "filename") "serial port device"
   ]
 
-upload :: IO ()
-upload = do
+main :: IO ()
+main = do
   programName <- getProgName
   let header = programName ++ " [option ...] <file ...>" ++ "\n\nOptions:"
       usage  = "Usage:\n" ++ usageInfo header options
@@ -42,6 +40,7 @@ upload = do
                        exitWith $ ExitFailure 1
   
   when (Help `elem` opts) $ do
+    putStrLn "Uploads files to NXT brick.\n"
     putStrLn usage
     exitWith ExitSuccess
   

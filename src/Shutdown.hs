@@ -1,5 +1,5 @@
-module Shutdown (
-  shutdown
+module Main (
+  main
 ) where
 
 import Control.Exception
@@ -11,7 +11,7 @@ import System.Environment
 import System.Exit
 import System.IO
 
-import qualified NXT.NXT as NXT
+import Robotics.NXT
 
 data Option = Help | Device FilePath deriving (Eq, Show)
 
@@ -25,8 +25,8 @@ options = [
     Option "d" ["device"] (ReqArg Device "filename") "serial port device"
   ]
 
-shutdown :: IO ()
-shutdown = do
+main :: IO ()
+main = do
   programName <- getProgName
   let header = programName ++ " [option ...]" ++ "\n\nOptions:"
       usage  = "Usage:\n" ++ usageInfo header options
@@ -42,9 +42,10 @@ shutdown = do
                    exitWith $ ExitFailure 1
   
   when (Help `elem` opts) $ do
+    putStrLn "Remotely shutdowns NXT brick.\n"
     putStrLn usage
     exitWith ExitSuccess
   
-  let Device device = fromMaybe (Device NXT.defaultDevice) . find isDevice $ opts
+  let Device device = fromMaybe (Device defaultDevice) . find isDevice $ opts
   
-  bracket (NXT.initialize device) NXT.terminate (evalStateT NXT.shutdown)
+  bracket (initialize device) terminate (evalStateT shutdown)
