@@ -42,7 +42,7 @@ main = do
                    exitWith $ ExitFailure 1
   
   when (Help `elem` opts) $ do
-    putStrLn "Remotely shutdowns NXT brick.\n"
+    putStrLn "Remotely shutdowns a NXT brick.\n"
     putStrLn usage
     exitWith ExitSuccess
   
