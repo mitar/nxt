@@ -1,9 +1,12 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module NXT.Types where
 
 import Control.Monad.State
 import Data.Int
 import Data.Ratio
 import Data.Time.Clock.POSIX
+import Data.Typeable
 import Data.Word
 import System.IO
 
@@ -15,7 +18,13 @@ import System.IO
 --  Appendix 7 - Ultrasonic sensor I2C communication protocol
 
 type NXT = StateT NXTState IO -- NXT monad
-data NXTState = NXTState { nxthandle :: Handle, address :: Maybe BTAddress, modules :: [(ModuleName, ModuleInfo)], sleeptime :: Duration, lastkeepalive :: POSIXTime } -- NXT monad has a handle of an opened serial port, some module infos, sleep time limit in seconds, last time keep alive has been sent
+data NXTState = NXTState {
+    nxthandle :: Handle, -- a handle of an opened serial port
+    address :: Maybe BTAddress,
+    modules :: [(ModuleName, ModuleInfo)], -- modules info
+    sleeptime :: Duration, -- sleep time limit in seconds
+    lastkeepalive :: POSIXTime -- last time keep alive has been sent
+  } deriving (Show, Typeable)
 
 -- The format of version is major.minor: (printf "%d.%02d" major minor)
 type Major = Int
