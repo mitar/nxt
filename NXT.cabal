@@ -22,6 +22,8 @@ Build-type:          Simple
 Cabal-version:       >= 1.8
 Stability:           experimental
 Homepage:            http://mitar.tnode.com
+Extra-source-files:  remote/remote.rxe,
+                     remote/remote.nxc
 
 Library
   Exposed-modules:     Robotics.NXT,
