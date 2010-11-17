@@ -2,8 +2,9 @@ module Main (
   main
 ) where
 
-import Control.Exception
+import Control.Applicative
 import Control.Monad.State
+import qualified Data.ByteString.Lazy as B
 import Data.Maybe
 import Data.List
 import System.Console.GetOpt
@@ -50,7 +51,7 @@ main = do
   
   let Device device = fromMaybe (Device defaultDevice) . find isDevice $ opts
   
-  bracket (initialize device) terminate (evalStateT (uploadFiles files))
+  withNXT device (uploadFiles files)
 
 uploadFiles :: [String] -> NXT ()
 uploadFiles args = do
@@ -60,11 +61,11 @@ uploadFiles args = do
             liftIO $ putStrLn $ "Uploading " ++ file
             h <- liftIO $ openBinaryFile file ReadMode
             size <- liftIO $ hFileSize h
-            content <- liftIO $ hGetContents h
+            content <- liftIO $ B.unpack <$> B.hGetContents h
             let filename = takeFileName file
             deleteConfirm filename
             h' <- openWrite filename (fromIntegral size)
-            mapM_ (write h' . stringToData) $ chunk 61 content
+            mapM_ (write h') $ chunk 61 content
             close h'
           chunk _ [] = [[]]
           chunk n xs = y1 : chunk n y2

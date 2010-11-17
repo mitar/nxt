@@ -2,11 +2,13 @@ Name:                NXT
 Version:             0.1
 Synopsis:            A Haskell interface to Lego Mindstorms NXT
 Description:         A Haskell interface to Lego Mindstorms NXT over Bluetoooth. It supports direct commands, messages and
-                     many sensors (also unofficial). It has also support for a simple message-based control of a brick via
-                     remotely executed program (basic NXC code included).
+                     many sensors (also unofficial). It has also support for a simple message-based control of a NXT brick
+                     via remotely executed program (basic NXC code included).
                      .
                      It contains two simple programs: @nxt-upload@ for uploading files to a NXT brick and @nxt-shutdown@ for
                      remote shutdown of a NXT brick.
+                     .
+                     It works best on Linux and it also works on Mac OS X.
                      .
                      Feel free to contribute additional features, interfaces for more sensors and propose or write other
                      (example) programs.
@@ -23,9 +25,10 @@ Homepage:            http://mitar.tnode.com
 
 Library
   Exposed-modules:     Robotics.NXT,
-                       Robotics.NXT.Compass,
-                       Robotics.NXT.UltrasonicSensor,
-                       Robotics.NXT.Remote
+                       Robotics.NXT.MotorControl,
+                       Robotics.NXT.Remote,
+                       Robotics.NXT.Sensor.Compass,
+                       Robotics.NXT.Sensor.Ultrasonic
   Build-depends:       base >= 4 && < 5,
                        mtl >= 1.1 && < 2,
                        bytestring >= 0.9 && < 1,
@@ -35,25 +38,34 @@ Library
                        Robotics.NXT.Data,
                        Robotics.NXT.Errors,
                        Robotics.NXT.Protocol,
-                       Robotics.NXT.Types
-  Hs-source-dirs:      lib
+                       Robotics.NXT.Types,
+                       Robotics.NXT.Internals,
+                       Robotics.NXT.Externals
+  HS-source-dirs:      lib
   C-sources:           ffi/blue.c,
                        ffi/initserial.c
   Includes:            ffi/blue.h,
                        ffi/initserial.h
+  GHC-options:         -Wall
+  if os(linux)
+    Extra-libraries:   bluetooth
 
 Executable nxt-shutdown
   Main-is:             Shutdown.hs
-  Hs-source-dirs:      src
+  HS-source-dirs:      src
   Build-depends:       base >= 4 && < 5,
                        mtl >= 1.1 && < 2,
                        NXT == 0.1
+  GHC-options:         -Wall
 
 Executable nxt-upload
   Main-is:             UploadFiles.hs
-  Hs-source-dirs:      src
+  HS-source-dirs:      src
   Build-depends:       base >= 4 && < 5,
                        mtl >= 1.1 && < 2,
+                       bytestring >= 0.9 && < 1,
                        filepath >= 1.1 && < 2,
                        NXT == 0.1
-
+  GHC-options:         -Wall
+  GHC-prof-options:    -Wall
+  GHC-shared-options:  -Wall

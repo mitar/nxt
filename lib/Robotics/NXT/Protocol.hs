@@ -2,44 +2,70 @@
 {-# CFILES ffi/initserial.c #-}
 
 module Robotics.NXT.Protocol (
-  initSerialPort,
+  -- * Initialization
+  withNXT,
   defaultDevice,
-  initialize,
-  terminate,
+
+  -- * Motors
+  setOutputState,
+  setOutputStateConfirm,
+  getOutputState,
+  resetMotorPosition,
+
+  -- * Sensors
+  setInputMode,
+  setInputModeConfirm,
+  getInputValues,
+  resetInputScaledValue,
+
+  -- * Miscellaneous
   getVersion,
   getDeviceInfo,
+  getBatteryLevel,
+  isBatteryRechargeable,
+  keepAlive,
+  keepAliveConfirm,
+  getSleepTimeout,
+  getLastKeepAliveTime,
+  stopEverything,
+  shutdown,
+
+  -- * Remote Programs
+  -- | It is possible to remotely run and control (with messages) programs on the NXT brick. Those here are low-level functions
+  -- but check also high-level "Robotics.NXT.Remote" and "Robotics.NXT.MotorControl" modules.
   startProgram,
   startProgramConfirm,
   stopProgram,
   stopProgramConfirm,
   stopProgramExisting,
+  ensureStartProgram,
+  getCurrentProgramName,
+
+  -- * Messages
+  -- | It is possible to control programs on the NXT brick with messages. Those here are low-level functions
+  -- but check also high-level "Robotics.NXT.Remote" and "Robotics.NXT.MotorControl" modules.
+  messageWrite,
+  messageWriteConfirm,
+  messageRead,
+  maybeMessageRead,
+  ensureMessageRead,
+
+  -- * Sounds
   playSoundFile,
   playSoundFileConfirm,
   playTone,
-  setOutputState,
-  setOutputStateConfirm,
-  getOutputState,
-  setInputMode,
-  setInputModeConfirm,
-  getInputValues,
-  resetInputScaledValue,
-  messageWrite,
-  messageWriteConfirm,
-  resetMotorPosition,
-  getBatteryLevel,
-  isBatteryRechargeable,
   stopSoundPlayback,
   stopSoundPlaybackConfirm,
-  keepAlive,
-  keepAliveDuration,
+
+  -- * Low Speed (I2C)
+  -- | With those low-level functions it is possible to communicate with digital sensors attached to the NXT brick. But check
+  -- also high-level "Robotics.NXT.Sensor.Ultrasonic" and "Robotics.NXT.Sensor.Compass" modules.
   lowspeedGetStatus,
   lowspeedWrite,
   lowspeedWriteConfirm,
   lowspeedRead,
-  getCurrentProgramName,
-  messageRead,
-  stopEverything,
-  shutdown,
+
+  -- * Filesystem
   openWrite,
   openWriteLinear,
   write,
@@ -49,15 +75,33 @@ module Robotics.NXT.Protocol (
   delete,
   deleteConfirm,
   deleteExisting,
+
+  -- * IO Map
+  -- | Interface to NXT firmware is based on internal IO map interface. All commands are in fact just pretty wrappers to this
+  -- interface, but it is possible to use it directly and thus gain some additional possibilities which are not
+  -- available otherwise (some of those are already wrapped in this interface's additional functions and feel free to suggest
+  -- more if you need them).
+  getModuleID,
+  listModules,
   requestFirstModule,
   requestNextModule,
   closeModuleHandle,
   closeModuleHandleConfirm,
-  listModules,
   readIOMap,
   writeIOMap,
   writeIOMapConfirm,
-  getModuleID
+  
+  -- * Internals
+  -- | Be careful when using those functions as you have to assure your program is well-behaved: you should see 'NXTInternals' as a
+  -- token you have to pass around in order, not reusing or copying values. They are exposed so that you can decouple initalization,
+  -- execution and termination phase. If you do not need that use 'withNXT'.
+  --
+  -- For example, using 'bracket' is not the best way to combine them together as token returned from 'initialize' in \"acquire resource\"
+  -- phase is reused in \"release resource\" phase even if it was otherwise used in-between. Really use 'withNXT' for that.
+  initialize,
+  terminate,
+  runNXT,
+  execNXT
 ) where
 
 import qualified Data.ByteString as B
@@ -81,6 +125,7 @@ import Text.Printf
 import Robotics.NXT.Data
 import Robotics.NXT.Errors
 import Robotics.NXT.Types
+import Robotics.NXT.Internals
 
 -- Described in Lego Mindstorms NXT Bluetooth Developer Kit:
 --  Appendix 1 - Communication protocol
@@ -88,6 +133,7 @@ import Robotics.NXT.Types
 
 -- TODO: All functions which requests ModuleInfo could populate module ID cache along the way
 -- TODO: Add an optional warning if direction of communication changes
+-- TODO: Implement all missing "confirm" versions
 
 -- Foreign function call for C function which initialize serial port device on POSIX systems
 foreign import ccall unsafe "initSerialPort" initSerialPort' :: Fd -> IO CInt
@@ -95,14 +141,19 @@ foreign import ccall unsafe "initSerialPort" initSerialPort' :: Fd -> IO CInt
 initSerialPort :: Fd -> IO ()
 initSerialPort fd = throwErrnoIfMinus1_ "initSerialPort" $ initSerialPort' fd
 
+{-|
+Default Bluetooth serial device filename for current operating system. Currently always @\/dev\/rfcomm0@.
+-}
 defaultDevice :: FilePath
 defaultDevice = "/dev/rfcomm0"
 
 debug :: Bool
 debug = False
 
--- Opens and intializes serial port
-initialize :: FilePath -> IO NXTState
+{-|
+Opens and intializes a Bluetooth serial device communication.
+-}
+initialize :: FilePath -> IO NXTInternals
 initialize device = do
   -- we have to block signals from interrupting openFd system call (fixed in GHC versions after 6.12.1)
   let signals = foldl (flip addSignal) emptySignalSet [virtualTimerExpired]
@@ -113,21 +164,36 @@ initialize device = do
   h <- fdToHandle fd
   hSetBuffering h NoBuffering
   when debug $ hPutStrLn stderr "initialized"
-  return $ NXTState h Nothing [] 0 0
+  return $ NXTInternals h Nothing [] Nothing Nothing
 
--- Stops all NXT activities and closes the handler (and so serial port connection)
-terminate :: NXTState -> IO ()
-terminate nxtstate = do
-  nxtstate' <- execStateT stopEverything nxtstate
-  let h = nxthandle nxtstate'
+{-|
+Stops all NXT activities (by calling 'stopEverything') and closes the Bluetooth serial device communication. 'NXTInternals' token must not
+be used after that anymore.
+-}
+terminate :: NXTInternals -> IO ()
+terminate i = do
+  i' <- execNXT stopEverything i
+  let h = nxthandle i'
   hClose h
   when debug $ hPutStrLn stderr "terminated"
+
+-- TODO: Change to mask/restore in GHC 7.0
+{-|
+Function which initializes and terminates Bluetooth connection to the NXT brick (using 'initialize' and 'terminate') and in-between
+runs given computation. It terminates Bluetooth connection on an exception, too, rethrowing it afterwards.
+-}
+withNXT :: FilePath -> NXT a -> IO a
+withNXT device action = block $ do
+  i <- initialize device
+  (r, i') <- unblock (runNXT action i) `onException` terminate i
+  terminate i'
+  return r
 
 -- Main function for sending data to NXT
 -- It calculates the length and prepends it to the message
 sendData :: [Word8] -> NXT ()
 sendData message = do
-  h <- gets nxthandle
+  h <- getsNXT nxthandle
   let len = toUWord . length $ message
       packet = len ++ message
   liftIO . B.hPut h . B.pack $ packet
@@ -136,7 +202,7 @@ sendData message = do
 -- Main function for receiving data from NXT
 receiveData :: NXT [Word8]
 receiveData = do
-  h <- gets nxthandle
+  h <- getsNXT nxthandle
   len <- liftIO $ B.hGet h 2
   let len' = fromUWord . B.unpack $ len
   packet <- liftIO $ B.hGet h len'
@@ -144,7 +210,9 @@ receiveData = do
   when debug $ liftIO . hPutStrLn stderr $ "received: " ++ show unpacket
   return unpacket
 
--- Gets firmware and protocol versions
+{-|
+Gets firmware and protocol versions of the NXT brick.
+-}
 getVersion :: NXT Version
 getVersion = do
   when debug $ liftIO . hPutStrLn stderr $ "getversion"
@@ -161,7 +229,10 @@ getVersion = do
     _:_:e:_                                            -> liftIO $ failNXT "getVersion" e
     _                                                  -> liftIO $ failNXT' "getVersion"
 
--- Gets device information: name, Bluetooth 48 bit address in the string format, strength of Bluetooth signal, free space on flash
+{-|
+Gets device (the NXT brick) information: name, Bluetooth 48 bit address in the string format, strength of Bluetooth signal (not implemented in
+current NXT firmware versions, use 'bluetoothRSSI' or 'bluetoothLinkQuality' as an alternative), free space on flash.
+-}
 getDeviceInfo :: NXT DeviceInfo
 getDeviceInfo = do
   when debug $ liftIO . hPutStrLn stderr $ "getdeviceinfo"
@@ -170,7 +241,7 @@ getDeviceInfo = do
   receive <- receiveData
   case receive of
     0x02:0x9B:0x00:info | length info == 30 -> do
-      modify (\s -> s { address = Just btaddress }) -- we cache it
+      modifyNXT (\s -> s { address = Just btaddress }) -- we cache it
       return $ DeviceInfo name' btaddress btstrength flashfree
         where (name, info') = splitAt 15 info
               name' = dataToString0 name
@@ -181,11 +252,19 @@ getDeviceInfo = do
     _:_:e:_               -> liftIO $ failNXT "getDeviceInfo" e
     _                     -> liftIO $ failNXT' "getDeviceInfo"
 
--- Starts a program
+{-|
+Starts a given program on the NXT brick.
+-}
 startProgram :: FileName -> NXT ()
 startProgram = startProgram' False
 
--- Starts a program, but also gets the confirmation
+{-|
+Same as 'startProgram' but also request a confirmation. Useful to assure the command was really accepted, but this does not assure
+that the program has really started successfully (especially not that it is already running when the confirmation is received).
+Use 'ensureStartProgram' for that. In a case of an error it throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms.
+-}
 startProgramConfirm :: FileName -> NXT ()
 startProgramConfirm = startProgram' True
 
@@ -201,17 +280,26 @@ startProgram' confirm filename = do
       [_, _, e]          -> liftIO $ failNXT "startProgram" e
       _                  -> liftIO $ failNXT' "startProgram"
 
--- Stops a program
+{-|
+Stops a currently running program.
+-}
 stopProgram :: NXT ()
 stopProgram = stopProgram' False False
 
--- Stops a program, but also gets the confirmation
+{-|
+Same as 'stopProgram' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it
+throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
 stopProgramConfirm :: NXT ()
 stopProgramConfirm = stopProgram' True False
 
--- Deletes a file, but requires program running
-stopProgramExisting :: FileName -> NXT ()
-stopProgramExisting = delete' True True
+{-|
+Same as 'stopProgramConfirm' but it also requires that the program was really running. It throws a 'NXTException' otherwise.
+-}
+stopProgramExisting :: NXT ()
+stopProgramExisting = stopProgram' True True
 
 stopProgram' :: Bool -> Bool -> NXT ()
 stopProgram' confirm running = do
@@ -226,15 +314,40 @@ stopProgram' confirm running = do
       [_, _, e]          -> liftIO $ failNXT "stopProgram" e
       _                  -> liftIO $ failNXT' "stopProgram"
 
--- Plays a sound file
-playSoundFile :: Bool -> FileName -> NXT ()
+-- TODO: Could probably loop infinitely in some strange situation? Some timeout could be useful?
+{-|
+Helper function which first ensures that no other program is running and then ensures that a given program is really running before
+it returns.
+-}
+ensureStartProgram :: FileName -> NXT ()
+ensureStartProgram filename = do
+  stopAndWait
+  startAndWait
+    where stopAndWait = do
+            stopProgramConfirm
+            name <- getCurrentProgramName
+            unless (isNothing name) stopAndWait
+          startAndWait = do
+            startProgramConfirm filename
+            name <- getCurrentProgramName
+            unless (isJust name) startAndWait
+
+{-|
+Plays a given sound file.
+-}
+playSoundFile :: LoopPlayback -> FileName -> NXT ()
 playSoundFile = playSoundFile' False
 
--- Plays a sound file, but also gets the confirmation
-playSoundFileConfirm :: Bool -> FileName -> NXT ()
+{-|
+Same as 'playSoundFile' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it
+throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
+playSoundFileConfirm :: LoopPlayback -> FileName -> NXT ()
 playSoundFileConfirm = playSoundFile' True
 
-playSoundFile' :: Bool -> Bool -> FileName -> NXT ()
+playSoundFile' :: Bool -> LoopPlayback -> FileName -> NXT ()
 playSoundFile' confirm loop filename = do
   when debug $ liftIO . hPutStrLn stderr $ "playsoundfile"
   let send = [request confirm, 0x02, fromIntegral . fromEnum $ loop] ++ nameToData filename
@@ -246,7 +359,9 @@ playSoundFile' confirm loop filename = do
       [_, _, e]          -> liftIO $ failNXT "playSoundFile" e
       _                  -> liftIO $ failNXT' "playSoundFile"
 
--- Plays a tone with given frequency (in Hz) for given duration (in s)
+{-|
+Plays a tone with a given frequency (in hertz) for a given duration (in seconds).
+-}
 playTone :: Frequency -> Duration -> NXT ()
 playTone frequency duration = do
   when debug $ liftIO . hPutStrLn stderr $ "playtone"
@@ -255,11 +370,18 @@ playTone frequency duration = do
     where toMilliseconds :: Duration -> Integer -- duration is in seconds, but NXT requires milliseconds
           toMilliseconds d = floor (d * 1000)
 
--- Sets output (motor) state
+{-|
+Sets output port (motor) state. This is the main function for controlling a motor.
+-}
 setOutputState :: OutputPort -> OutputPower -> [OutputMode] -> RegulationMode -> TurnRatio -> RunState -> TachoLimit -> NXT ()
 setOutputState = setOutputState' False
 
--- Sets output (motor) state, but also gets the confirmation
+{-|
+Same as 'setOutputState' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error
+it throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms.
+-}
 setOutputStateConfirm :: OutputPort -> OutputPower -> [OutputMode] -> RegulationMode -> TurnRatio -> RunState -> TachoLimit -> NXT ()
 setOutputStateConfirm = setOutputState' True
 
@@ -292,7 +414,10 @@ setOutputState' confirm output power mode regulation turn runstate tacholimit
                           MotorRunStateRampDown -> 0x40
                           MotorRunStateHold -> 0x60
 
--- Gets output (motor) state (with rotation)
+{-|
+Gets output port (motor) current state. In additional to values used with 'setOutputState' also 'TachoCount', 'BlockTachoCount'
+and 'RotationCount' values are available which tell you current position of a motor.
+-}
 getOutputState :: OutputPort -> NXT OutputState
 getOutputState output = do
   when debug $ liftIO . hPutStrLn stderr $ "getoutputstate"
@@ -326,11 +451,17 @@ getOutputState output = do
     _:_:e:_                                                         -> liftIO $ failNXT "getOutputState" e
     _                                                               -> liftIO $ failNXT' "getOutputState"
 
--- Sets input (sensor) mode
+{-|
+Sets input port (sensor) type and mode.
+-}
 setInputMode :: InputPort -> SensorType -> SensorMode -> NXT ()
 setInputMode = setInputMode' False
 
--- Sets input (sensor) mode, but also gets the confirmation
+{-|
+Same as 'setInputMode' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
 setInputModeConfirm :: InputPort -> SensorType -> SensorMode -> NXT ()
 setInputModeConfirm = setInputMode' True
 
@@ -372,8 +503,10 @@ setInputMode' confirm input sensortype sensormode = do
                           -- SlopeMask -> 0x1F
                           -- ModeMask -> 0xE0
 
--- Gets input (sensor) values
-getInputValues :: InputPort -> NXT InputValues
+{-|
+Gets input port (sensor) values. This is the main function for reading a sensor.
+-}
+getInputValues :: InputPort -> NXT InputValue
 getInputValues input = do
   when debug $ liftIO . hPutStrLn stderr $ "getinputvalues"
   let send = [0x00, 0x07, fromIntegral . fromEnum $ input]
@@ -382,13 +515,9 @@ getInputValues input = do
   case receive of
     0x02:0x07:0x00:port:valid:calibrated:sensortype:sensormode:values
       | length values == 8 && fromEnum input == fromIntegral port ->
-          return $ InputValues input valid' calibrated' sensortype' sensormode' raw normalized scaled calibratedv
-            where valid'      = case valid of
-                                  0x00 -> NotValid
-                                  _    -> Valid
-                  calibrated' = case calibrated of
-                                  0x00 -> NotCalibrated
-                                  _    -> Calibrated
+          return $ InputValue input valid' calibrated' sensortype' sensormode' raw normalized scaled calibratedv
+            where valid'      = valid /= 0x00
+                  calibrated' = calibrated /= 0x00
                   sensortype' = case sensortype of
                                   0x00 -> NoSensor
                                   0x01 -> Switch
@@ -424,19 +553,28 @@ getInputValues input = do
     _:_:e:_                                                       -> liftIO $ failNXT "getInputValues" e
     _                                                             -> liftIO $ failNXT' "getInputValues"
 
--- Resets scaled value
+{-|
+Resets input port (sensor) scaled value.
+-}
 resetInputScaledValue :: InputPort -> NXT ()
 resetInputScaledValue input = do
   when debug $ liftIO . hPutStrLn stderr $ "resetinputscaledvalue"
   let send = [0x80, 0x08, fromIntegral . fromEnum $ input]
   sendData send
 
--- Writes a message
--- Message length is limited to 58 bytes per command
+{-|
+Writes a message to the given inbox queue of the running remote program. A message length is limited to 58 characters/bytes. A queue
+is limited to 5 messages.
+-}
 messageWrite :: Inbox -> String -> NXT ()
 messageWrite = messageWrite' False
 
--- Writes a message, but also gets the confirmation
+{-|
+Same as 'messageWrite' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it
+throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms.
+-}
 messageWriteConfirm :: Inbox -> String -> NXT ()
 messageWriteConfirm = messageWrite' True
 
@@ -455,7 +593,9 @@ messageWrite' confirm inbox message
           _                  -> liftIO $ failNXT' "messageWrite"
   | otherwise             = liftIO . throwIO $ PatternMatchFail "messageWrite"
 
--- Resets motor position
+{-|
+Resets one of three position counters for a given output port.
+-}
 resetMotorPosition :: OutputPort -> MotorReset -> NXT ()
 resetMotorPosition output reset = do
   when debug $ liftIO . hPutStrLn stderr $ "resetmotorposition"
@@ -467,7 +607,9 @@ resetMotorPosition output reset = do
       let send = [0x80, 0x0A, fromIntegral . fromEnum $ output, fromIntegral . fromEnum $ reset]
       sendData send
 
--- Gets battery level (in mV)
+{-|
+Gets current battery level (in volts).
+-}
 getBatteryLevel :: NXT Voltage
 getBatteryLevel = do
   when debug $ liftIO . hPutStrLn stderr $ "getbatterylevel"
@@ -475,11 +617,13 @@ getBatteryLevel = do
   sendData send
   receive <- receiveData
   case receive of
-    [0x02, 0x0B, 0x00, v1, v2] -> return $ fromUWord [v1, v2]
+    [0x02, 0x0B, 0x00, v1, v2] -> return $ fromUWord [v1, v2] % 1000 -- voltage is in millivolts
     _:_:e:_                    -> liftIO $ failNXT "getBatteryLevel" e
     _                          -> liftIO $ failNXT' "getBatteryLevel"
 
--- Is battery rechargeable?
+{-|
+Is battery used in the NXT brick rechargeable?
+-}
 isBatteryRechargeable :: NXT Bool
 isBatteryRechargeable = do
   when debug $ liftIO . hPutStrLn stderr $ "isbatteryrechargeable"
@@ -487,11 +631,18 @@ isBatteryRechargeable = do
   r <- readIOMap (fromJust mid) 35 1
   return $ (/=) 0 (head r)
 
--- Stops sound playback
+{-|
+Stops current sound file playback.
+-}
 stopSoundPlayback :: NXT ()
 stopSoundPlayback = stopSoundPlayback' False
 
--- Stops sound playback, but also gets the confirmation
+{-|
+Same as 'stopSoundPlayback' but also request a confirmation. Useful to assure the command was really accepted. In a case of an
+error it throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
 stopSoundPlaybackConfirm :: NXT ()
 stopSoundPlaybackConfirm = stopSoundPlayback' True
 
@@ -507,33 +658,61 @@ stopSoundPlayback' confirm = do
       [_, _, e]          -> liftIO $ failNXT "stopSoundPlayback" e
       _                  -> liftIO $ failNXT' "stopSoundPlayback"
 
--- Sends a keep alive (turned on) packet
+{-|
+Sends a keep alive (turned on) packet. It prevents the NXT brick from automatically powering off. Other commands do not prevent that
+from hapenning so it is useful to send this packet from time to time if you want to prevent powering off.
+-}
 keepAlive :: NXT ()
-keepAlive = do
+keepAlive = keepAlive' False >> return ()
+
+{-|
+Same as 'keepAlive' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it
+throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
+keepAliveConfirm :: NXT ()
+keepAliveConfirm = keepAlive' True >> return ()
+
+keepAlive' :: Bool -> NXT Duration
+keepAlive' confirm = do
   when debug $ liftIO . hPutStrLn stderr $ "keepalive"
   current <- liftIO getPOSIXTime
-  modify (\s -> s { lastkeepalive = current })
-  let send = [0x80, 0x0D]
-  sendData send
-
--- Sends a keep alive (turned on) packet and gets current sleep time limit in milliseconds 
-keepAliveDuration :: NXT Duration
-keepAliveDuration = do
-  when debug $ liftIO . hPutStrLn stderr $ "keepaliveduration"
-  current <- liftIO getPOSIXTime
-  modify (\s -> s { lastkeepalive = current })
+  modifyNXT (\s -> s { lastkeepalive = Just current })
   let send = [0x00, 0x0D]
   sendData send
-  receive <- receiveData
-  case receive of
-    0x02:0x0D:0x00:limit -> do
-      let l = fromULong limit % 1000 -- l is in milliseconds
-      modify (\s -> s { sleeptime = l })
-      return l
-    _:_:e:_              -> liftIO $ failNXT "keepAliveDuration" e
-    _                    -> liftIO $ failNXT' "keepAliveDuration"
+  if confirm
+    then do
+      receive <- receiveData
+      case receive of
+        0x02:0x0D:0x00:limit -> do
+          let l = fromRational $ fromULong limit % 1000 -- limit is in milliseconds
+          modifyNXT (\s -> s { sleeptime = Just l })
+          return l
+        _:_:e:_              -> liftIO $ failNXT "keepAlive" e
+        _                    -> liftIO $ failNXT' "keepAlive"
+    else return 0
 
--- Gets number of available bytes to read
+{-|
+Gets current sleep timeout setting (in seconds) after which the NXT brick automatically powers off if
+not prevented with a keep alive packet (use 'keepAlive' to send one). This setting is cached.
+-}
+getSleepTimeout :: NXT Duration
+getSleepTimeout = do
+  sleep <- getsNXT sleeptime
+  case sleep of
+    Just s  -> return s
+    Nothing -> keepAlive' True
+
+{-|
+When was a last keep alive packet send?
+-}
+getLastKeepAliveTime :: NXT (Maybe POSIXTime)
+getLastKeepAliveTime = getsNXT lastkeepalive
+
+{-|
+Gets number of bytes available to read.
+-}
 lowspeedGetStatus :: InputPort -> NXT Int
 lowspeedGetStatus input = do
   when debug $ liftIO . hPutStrLn stderr $ "lowspeedgetstatus"
@@ -546,14 +725,20 @@ lowspeedGetStatus input = do
     _:_:e:_                   -> liftIO $ failNXT "lowSpeedGetStatus" e
     _                         -> liftIO $ failNXT' "lowSpeedGetStatus"
 
--- Writes data
--- Rx data length must be specified in the write command since reading from the
--- device is done on a master-slave basis
--- Data length is limited to 16 bytes per command
+{-|
+Writes data. At most 16 bytes can be written at a time.
+
+Reply data length must be specified in the write command since reading from the device is done on a master-slave basis.
+-}
 lowspeedWrite :: InputPort -> RxDataLength -> TxData -> NXT ()
 lowspeedWrite = lowspeedWrite' False
 
--- Writes data, but also gets the confirmation
+{-|
+Same as 'lowspeedWrite' but also request a confirmation. Useful to assure the command was really accepted. In a case of an
+error it throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
 lowspeedWriteConfirm :: InputPort -> RxDataLength -> TxData -> NXT ()
 lowspeedWriteConfirm = lowspeedWrite' True
 
@@ -571,10 +756,10 @@ lowspeedWrite' confirm input rx txdata
           _                  -> liftIO $ failNXT' "lowspeedWrite"
   | otherwise                       = liftIO . throwIO $ PatternMatchFail "lowspeedWrite"
 
--- Reads data
--- The protocol does not support variable-length return packages so the response
--- always contains 16 data bytes with invalid data padded with zeros
--- Data length is limited to 16 bytes per command
+{-|
+Reads data. The protocol does not support variable-length return packages so the response always contains 16 data bytes with invalid
+data padded with zeros.
+-}
 lowspeedRead :: InputPort -> NXT RxData
 lowspeedRead input = do
   when debug $ liftIO . hPutStrLn stderr $ "lowspeedread"
@@ -588,7 +773,9 @@ lowspeedRead input = do
     _:_:e:_                             -> liftIO $ failNXT "lowSpeedRead" e
     _                                   -> liftIO $ failNXT' "lowSpeedRead"
 
--- Gets current program name
+{-|
+Gets the name of the currently running program, if any.
+-}
 getCurrentProgramName :: NXT (Maybe String)
 getCurrentProgramName = do
   when debug $ liftIO . hPutStrLn stderr $ "getcurrentprogramname"
@@ -601,9 +788,33 @@ getCurrentProgramName = do
     _:_:e:_                                         -> liftIO $ failNXT "getCurrentProgramName" e
     _                                               -> liftIO $ failNXT' "getCurrentProgramName"
 
--- Reads a message
-messageRead :: RemoteInbox -> Bool -> NXT String
+{-|
+Reads a message from the currently running program from a given remote inbox queue. A queue is limited to 5 messages.
+It throws a 'NXTException' if there is no message in a remote inbox queue.
+-}
+messageRead :: RemoteInbox -> RemoveMessage -> NXT String
 messageRead inbox remove = do
+  m <- maybeMessageRead inbox remove
+  case m of
+    Just m' -> return m'
+    Nothing -> liftIO $ failNXT "messageRead" 0x40
+
+-- TODO: Could probably loop infinitely? Some timeout could be useful?
+{-|
+Same as 'messageWrite' but if there is no message in a given remote inbox queue it retries until there is.
+-}
+ensureMessageRead :: RemoteInbox -> RemoveMessage -> NXT String
+ensureMessageRead inbox remove = do
+  m <- maybeMessageRead inbox remove
+  case m of
+    Just m' -> return m'
+    Nothing -> ensureMessageRead inbox remove
+
+{-|
+Same as 'messageWrite' but returns 'Nothing' if there is no message in a given remote inbox queue.
+-}
+maybeMessageRead :: RemoteInbox -> RemoveMessage -> NXT (Maybe String)
+maybeMessageRead inbox remove = do
   when debug $ liftIO . hPutStrLn stderr $ "messageRead"
   let inbox' = fromIntegral . fromEnum $ inbox
       send = [0x00, 0x13, inbox', fromIntegral . fromEnum $ Inbox0, fromIntegral . fromEnum $ remove] -- local inbox number does not matter for PC, it is used only when master NXT reads from slave NXT
@@ -611,11 +822,14 @@ messageRead inbox remove = do
   receive <- receiveData
   case receive of
     0x02:0x13:0x00:inbox'':size:message
-      | inbox'' == inbox' && length message == 59 && size <= 59 -> return $ dataToString0 message
+      | inbox'' == inbox' && length message == 59 && size <= 59 -> return $ Just $ dataToString0 message
+    0x02:0x13:0x40:_                                            -> return Nothing
     _:_:e:_                                                     -> liftIO $ failNXT "messageRead" e
     _                                                           -> liftIO $ failNXT' "messageRead"
 
--- Stops all NXT activities: stops motors and disables sensors
+{-|
+Helper function which stops all NXT brick activities: stops motors and disables sensors.
+-}
 stopEverything :: NXT ()
 stopEverything = do
   when debug $ liftIO . hPutStrLn stderr $ "stopeverything"
@@ -624,13 +838,18 @@ stopEverything = do
     where stopMotor x = setOutputState x 0 [] RegulationModeIdle 0 MotorRunStateIdle 0
           stopSensor x = setInputMode x NoSensor RawMode
 
+{-|
+Shutdowns (powers off) the NXT brick. You have to manually turn it on again.
+-}
 shutdown :: NXT ()
 shutdown = do
   when debug $ liftIO . hPutStrLn stderr $ "shutdown"
   mid <- getModuleID "IOCtrl.mod"
   writeIOMap (fromJust mid) 0 [0x00, 0x5A]
 
--- Opens a file for writing a linked list of flash sectors
+{-|
+Opens a given file for writing as a linked list of flash sectors.
+-}
 openWrite :: FileName -> FileSize -> NXT FileHandle
 openWrite filename filesize = do
   when debug $ liftIO . hPutStrLn stderr $ "openwrite"
@@ -642,7 +861,9 @@ openWrite filename filesize = do
     _:_:e:_               -> liftIO $ failNXT "openWrite" e
     _                     -> liftIO $ failNXT' "openWrite"
 
--- Opens a file for writing a linear contiguous block of flash memory (required for user programs and certain data files)
+{-|
+Opens a given file for writing as a linear contiguous block of flash memory (required for user programs and certain data files).
+-}
 openWriteLinear :: FileName -> FileSize -> NXT FileHandle
 openWriteLinear filename filesize = do
   when debug $ liftIO . hPutStrLn stderr $ "openwritelinear"
@@ -654,12 +875,18 @@ openWriteLinear filename filesize = do
     _:_:e:_               -> liftIO $ failNXT "openWriteLinear" e
     _                     -> liftIO $ failNXT' "openWriteLinear"
 
--- Writes data to a file
--- Data length is limited to 61 bytes per command
+{-|
+Writes data to a file. At most 61 bytes can be written at a time.
+-}
 write :: FileHandle -> FileData -> NXT ()
 write = write' False
 
--- Writes data to a file, but also gets the confirmation
+{-|
+Same as 'write' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it
+throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
 writeConfirm :: FileHandle -> FileData -> NXT ()
 writeConfirm = write' True
 
@@ -678,11 +905,18 @@ write' confirm filehandle filedata
           _                                                                          -> liftIO $ failNXT' "write"
   | otherwise             = liftIO . throwIO $ PatternMatchFail "write"
 
--- Closes a file
+{-|
+Closes a file.
+-}
 close :: FileHandle -> NXT ()
 close = close' False
 
--- Closes a file, but also gets the confirmation
+{-|
+Same as 'close' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it
+throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
 closeConfirm :: FileHandle -> NXT ()
 closeConfirm = close' True
 
@@ -699,15 +933,24 @@ close' confirm filehandle = do
       _:_:e:_                         -> liftIO $ failNXT "close" e
       _                               -> liftIO $ failNXT' "close"
 
--- Deletes a file
+{-|
+Deletes a given file.
+-}
 delete :: FileName -> NXT ()
 delete = delete' False False
 
--- Deletes a file, but also gets the confirmation
+{-|
+Same as 'delete' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it throws
+a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
 deleteConfirm :: FileName -> NXT ()
 deleteConfirm = delete' True False
 
--- Deletes a file, but requires file existence
+{-|
+Same as 'deleteConfirm' but it also requires that the file exists before deletion. It throws a 'NXTException' otherwise.
+-}
 deleteExisting :: FileName -> NXT ()
 deleteExisting = delete' True True
 
@@ -725,7 +968,11 @@ delete' confirm existence filename = do
       _:_:e:_                         -> liftIO $ failNXT "delete" e
       _                               -> liftIO $ failNXT' "delete"
 
--- Requests information about the first module matching given module name (which can be a wild card)
+-- TODO: Populate cache here?
+{-|
+Requests information about the first module matching a given module name (which can be a wild card). Returned module handle
+can be used for followup requests and has to be closed when not needed anymore.
+-}
 requestFirstModule :: ModuleName -> NXT (ModuleHandle, Maybe ModuleInfo)
 requestFirstModule modulename = do
   when debug $ liftIO . hPutStrLn stderr $ "requestfirstmodule"
@@ -743,7 +990,11 @@ requestFirstModule modulename = do
     _:_:e:_                 -> liftIO $ failNXT "requestFirstModule" e
     _                       -> liftIO $ failNXT' "requestFirstModule"
 
--- Requests information about the next module matching previously requested module name (which can be a wild card)
+-- TODO: Populate cache here?
+{-|
+Requests information about the next module matching previously requested module name (which can be a wild card). Returned module
+handle can be used for followup requests and has to be closed when not needed anymore.
+-}
 requestNextModule :: ModuleHandle -> NXT (ModuleHandle, Maybe ModuleInfo)
 requestNextModule modulehandle = do
   when debug $ liftIO . hPutStrLn stderr $ "requestnextmodule"
@@ -761,11 +1012,18 @@ requestNextModule modulehandle = do
     _:_:e:_                 -> liftIO $ failNXT "requestNextModule" e
     _                       -> liftIO $ failNXT' "requestNextModule"
 
--- Closes previously requested module information
+{-|
+Closes module handle of previously requested module information.
+-}
 closeModuleHandle :: ModuleHandle -> NXT ()
 closeModuleHandle = closeModuleHandle' False
 
--- Closes previously requested module information, but also gets the confirmation
+{-|
+Same as 'closeModuleHandle' but also request a confirmation. Useful to assure the command was really accepted. In a case of an
+error it throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms.
+-}
 closeModuleHandleConfirm :: ModuleHandle -> NXT ()
 closeModuleHandleConfirm = closeModuleHandle' True
 
@@ -782,7 +1040,11 @@ closeModuleHandle' confirm modulehandle = do
       _:_:e:_                           -> liftIO $ failNXT "closeModuleHandle" e
       _                                 -> liftIO $ failNXT' "closeModuleHandle"
 
--- Gets information about all modules matching given module name (which can be a wild card)
+-- TODO: Populate cache here?
+-- TODO: Use bracket to ensure closed module handle?
+{-|
+Helper function to get information about all modules matching a given module name (which can be a wild card).
+-}
 listModules :: ModuleName -> NXT [ModuleInfo]
 listModules modulename = do
   (h, first) <- requestFirstModule modulename
@@ -798,12 +1060,16 @@ listModules modulename = do
             (h', mi) <- requestNextModule h
             case mi of
               Just mi' -> do
-                (h'',mi'') <- next h'
-                return (h'',mi':mi'')
+                (h'', mi'') <- next h'
+                return (h'', mi':mi'')
               Nothing  -> return (h', [])
 
--- Reads IO map data of a module
--- At most 119 bytes can be read at a time
+{-|
+Reads data from an IO map of a given module. At most 119 bytes can be read at a time.
+
+You probably have to know what different values at different positions mean and control. The best way is to check NXT firmware
+source code.
+-}
 readIOMap :: ModuleID -> IOMapOffset -> IOMapLength -> NXT IOMapData
 readIOMap moduleid offset len
   | offset >= 0 && len <= 119 = do
@@ -818,12 +1084,22 @@ readIOMap moduleid offset len
         _                                                                               -> liftIO $ failNXT' "readIOMap"
   | otherwise                 = liftIO . throwIO $ PatternMatchFail "readIOMap"
 
--- Writes data to an IO map of a module
--- Data length is limited to 54 bytes per command
+
+{-|
+Writes data to an IO map of a given module. At most 54 bytes can be written at a time.
+
+You probably have to know what different values at different positions mean and control. The best way is to check NXT firmware
+source code.
+-}
 writeIOMap :: ModuleID -> IOMapOffset -> IOMapData -> NXT ()
 writeIOMap = writeIOMap' False
 
--- Writes data to an IO map of a module, but also gets the confirmation
+{-|
+Same as 'writeIOMap' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error
+it throws a 'NXTException'.
+
+Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
+-}
 writeIOMapConfirm :: ModuleID -> IOMapOffset -> IOMapData -> NXT ()
 writeIOMapConfirm = writeIOMap' True
 
@@ -842,12 +1118,14 @@ writeIOMap' confirm moduleid offset mapdata
           _                                                                                          -> liftIO $ failNXT' "writeIOMap"
   | otherwise                           = liftIO . throwIO $ PatternMatchFail "writeIOMap"
 
--- Gets an ID of a module matching given module name
--- Hopefully retrieves it from a cache of previous requests
+{-|
+Helper function to get an ID of a module matching a given module name. Each module encompass some firmware functionality.
+Function caches IDs so it hopefully retrieves it from a cache of previous requests.
+-}
 getModuleID :: ModuleName -> NXT (Maybe ModuleID)
 getModuleID modulename | '*' `elem` modulename = return Nothing -- we do not allow wild cards
                        | otherwise = do
-                           mods <- gets modules
+                           mods <- getsNXT modules
                            let modulename' = map toLower modulename
                            case modulename' `lookup` mods of
                              Just (ModuleInfo _ mid _ _) -> return $ Just mid
@@ -856,7 +1134,7 @@ getModuleID modulename | '*' `elem` modulename = return Nothing -- we do not all
                                closeModuleHandle h
                                case mi of
                                  Just mi'@(ModuleInfo _ mid _ _) -> do
-                                   modify (\s -> s { modules = (modulename', mi'):mods })
+                                   modifyNXT (\s -> s { modules = (modulename', mi'):mods })
                                    return $ Just mid
                                  Nothing                         -> return Nothing
 

@@ -1,6 +1,10 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# OPTIONS_HADDOCK prune #-}
 
 module Robotics.NXT.Errors (
+  -- * Errors
+  -- | Possible error codes and their descriptions are described in Lego Mindstorms NXT Bluetooth Developer Kit, Appendix 1 - Communication
+  -- protocol and Appendix 2 - Direct commands.
   failNXT,
   failNXT',
   NXTException(..)
@@ -9,11 +13,6 @@ module Robotics.NXT.Errors (
 import Control.Exception
 import Data.Typeable
 import Data.Word
-
--- Possible error codes and their descriptions
--- Described in Lego Mindstorms NXT Bluetooth Developer Kit:
---  Appendix 1 - Communication protocol
---  Appendix 2 - Direct commands
 
 failNXT :: String -> Word8 -> IO a
 failNXT msg 0x20 = throwIO . NXTException $ msg ++ ": Pending communication transaction in progress"
@@ -58,6 +57,9 @@ failNXT msg _    = throwIO . NXTException $ msg -- invalid error code?
 failNXT' :: String -> IO a
 failNXT' msg = throwIO . NXTException $ msg
 
+{-|
+Exception for NXT interface errors. Currently only one exception is defined which takes textual description as an argument.
+-}
 data (Show a, Typeable a) => NXTException a = NXTException a deriving (Show, Typeable)
 
 instance (Show a, Typeable a) => Exception (NXTException a)

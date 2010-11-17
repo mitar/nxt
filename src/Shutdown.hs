@@ -2,7 +2,6 @@ module Main (
   main
 ) where
 
-import Control.Exception
 import Control.Monad.State
 import Data.Maybe
 import Data.List
@@ -48,4 +47,4 @@ main = do
   
   let Device device = fromMaybe (Device defaultDevice) . find isDevice $ opts
   
-  bracket (initialize device) terminate (evalStateT shutdown)
+  withNXT device shutdown
