@@ -1,5 +1,5 @@
 Name:                NXT
-Version:             0.1
+Version:             0.1.1
 Synopsis:            A Haskell interface to Lego Mindstorms NXT
 Description:         A Haskell interface to Lego Mindstorms NXT over Bluetoooth. It supports direct commands, messages and
                      many sensors (also unofficial). It has also support for a simple message-based control of a NXT brick
@@ -23,7 +23,9 @@ Cabal-version:       >= 1.8
 Stability:           experimental
 Homepage:            http://mitar.tnode.com
 Extra-source-files:  remote/remote.rxe,
-                     remote/remote.nxc
+                     remote/remote.nxc,
+                     ffi/blue.h,
+                     ffi/initserial.h
 
 Library
   Exposed-modules:     Robotics.NXT,
@@ -57,7 +59,7 @@ Executable nxt-shutdown
   HS-source-dirs:      src
   Build-depends:       base >= 4 && < 5,
                        mtl >= 1.1 && < 2,
-                       NXT == 0.1
+                       NXT == 0.1.1
   GHC-options:         -Wall
 
 Executable nxt-upload
@@ -67,7 +69,7 @@ Executable nxt-upload
                        mtl >= 1.1 && < 2,
                        bytestring >= 0.9 && < 1,
                        filepath >= 1.1 && < 2,
-                       NXT == 0.1
+                       NXT == 0.1.1
   GHC-options:         -Wall
   GHC-prof-options:    -Wall
   GHC-shared-options:  -Wall
