@@ -1,7 +1,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#import "initserial.h"
+#include "initserial.h"
 
 // A simple function which initializes serial port device: 8 bit data, one stop bit, RTS/CTS flow control
 
