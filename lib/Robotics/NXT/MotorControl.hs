@@ -51,7 +51,7 @@ Requires dynamic\/minimal pauses.
 -}
 controlledMotorCmd :: [OutputPort] -> OutputPower -> TachoLimit -> [MotorControlMode] -> NXT ()
 controlledMotorCmd ports power limit modes = motorControlSend message
-  where message = "1" ++ (fromPorts ports) ++ (fromPower power) ++ (fromLimit limit) ++ modes'
+  where message = "1" ++ fromPorts ports ++ fromPower power ++ fromLimit limit ++ modes'
         modes' = show . sum . zipWith (*) [1, 2, 4] . map (fromEnum . flip elem modes) $ [HoldBrake ..]
 
 {-|
@@ -62,7 +62,7 @@ The same thing can be achieved by using 'resetMotorPosition' with 'InternalPosit
 -}
 resetErrorCorrection :: [OutputPort] -> NXT ()
 resetErrorCorrection ports = motorControlSend message
-  where message = "2" ++ ports'
+  where message = '2' : ports'
         ports' = fromPorts ports
 
 {-|
@@ -73,7 +73,7 @@ Implements static pauses.
 -}
 isMotorReady :: [OutputPort] -> NXT [Bool]
 isMotorReady ports = do
-  mapM_ (\port -> motorControlSend $ "3" ++ port) ports''
+  mapM_ (\port -> motorControlSend $ '3' : port) ports''
   liftIO $ threadDelay (10 * 1000) -- 10 ms
   replies <- mapM (\_ -> motorControlReceive) ports''
   liftIO $ threadDelay (10 * 1000) -- 10 ms
@@ -89,7 +89,7 @@ Requires dynamic\/minimal pauses.
 -}
 classicMotorCmd :: [OutputPort] -> OutputPower -> TachoLimit -> SpeedRegulation -> NXT ()
 classicMotorCmd ports power limit regulation = motorControlSend message
-  where message = "4" ++ (fromPorts ports) ++ (fromPower power) ++ (fromLimit limit) ++ regulation'
+  where message = "4" ++ fromPorts ports ++ fromPower power ++ fromLimit limit ++ regulation'
         regulation' | regulation = "1"
                     | otherwise  = "0"
 
@@ -131,7 +131,7 @@ fromPorts ports | length ports' == 1 = show . fromEnum . head $ ports'
   where ports' = sort . nub $ ports
 
 fromPower :: OutputPower -> String
-fromPower power | (-100) <= power && power <= 100 = printf "%03d" $ if power < 0 then 100 + (abs power) else power
+fromPower power | (-100) <= power && power <= 100 = printf "%03d" $ if power < 0 then 100 + abs power else power
                 | otherwise                       = throw $ PatternMatchFail "fromPower"
 
 fromLimit :: TachoLimit -> String

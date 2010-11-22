@@ -235,4 +235,4 @@ Helper function which gets all measurements available in order (closer first).
 -}
 usGetAllMeasurements :: InputPort -> NXT [Measurement]
 usGetAllMeasurements input = mapMaybeM (usGetMeasurement input) [0..7]
-  where mapMaybeM f as = catMaybes <$> (mapM f as)
+  where mapMaybeM f as = catMaybes <$> mapM f as

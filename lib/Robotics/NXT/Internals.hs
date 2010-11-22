@@ -28,13 +28,13 @@ data NXTInternals = NXTInternals {
 Runs a computation in a context of a given 'NXTInternals' token, returning a value and a new token.
 -}
 runNXT :: NXT a -> NXTInternals -> IO (a, NXTInternals)
-runNXT (NXT action) internals = runStateT action internals 
+runNXT (NXT action) = runStateT action
 
 {-|
 Runs a computation in a context of a given 'NXTInternals' token, returning just a new token.
 -}
 execNXT :: NXT a -> NXTInternals -> IO NXTInternals
-execNXT (NXT action) internals = execStateT action internals 
+execNXT (NXT action) = execStateT action
 
 modifyNXT :: (NXTInternals -> NXTInternals) -> NXT ()
 modifyNXT f = NXT (modify f)
