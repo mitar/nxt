@@ -93,11 +93,9 @@ module Robotics.NXT.Protocol (
   
   -- * Internals
   -- | Be careful when using those functions as you have to assure your program is well-behaved: you should see 'NXTInternals' as a
-  -- token you have to pass around in order, not reusing or copying values. They are exposed so that you can decouple initalization,
-  -- execution and termination phase. If you do not need that use 'withNXT'.
-  --
-  -- For example, using 'bracket' is not the best way to combine them together as token returned from 'initialize' in \"acquire resource\"
-  -- phase is reused in \"release resource\" phase even if it was otherwise used in-between. Really use 'withNXT' for that.
+  -- token you have to pass around in order, not reusing or copying values. (The only exception is that you can reuse the token
+  -- initally returned by 'initialize' in 'terminate' call, even if you have used it in-between.) They are exposed so that you can
+  -- decouple initalization, execution and termination phase. If you do not need that use 'withNXT'.
   initialize,
   terminate,
   runNXT,

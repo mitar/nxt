@@ -24,6 +24,9 @@ data NXTInternals = NXTInternals {
     lastkeepalive :: Maybe POSIXTime -- last time keep alive has been sent
   }
 
+instance Show NXTInternals where
+  show _ = "NXTInternals"
+
 {-|
 Runs a computation in a context of a given 'NXTInternals' token, returning a value and a new token.
 -}
