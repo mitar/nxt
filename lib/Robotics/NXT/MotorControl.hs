@@ -77,10 +77,12 @@ isMotorReady ports = do
   liftIO $ threadDelay (10 * 1000) -- 10 ms
   replies <- mapM (\_ -> motorControlReceive) ports''
   liftIO $ threadDelay (10 * 1000) -- 10 ms
-  let replies' = map (\[p, r] -> ([p], r == '1')) replies
+  let replies' = map ready replies
   return $ map (fromJust . (`lookup` replies')) ports'
     where ports' = map (show . fromEnum) ports
           ports'' = nub ports'
+          ready [p, r] = ([p], r == '1')
+          ready _      = undefined
 
 {-|
 Interface to @CLASSIC_MOTORCMD@ command which is very similar to 'setOutputState' but better interacts with @MotorControl@.

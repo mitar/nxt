@@ -1,5 +1,5 @@
 Name:                NXT
-Version:             0.1.4
+Version:             0.1.5
 Synopsis:            A Haskell interface to Lego Mindstorms NXT
 Description:         A Haskell interface to Lego Mindstorms NXT over Bluetoooth. It supports direct commands, messages and
                      many sensors (also unofficial). It has also support for a simple message-based control of a NXT brick
@@ -33,8 +33,8 @@ Library
                        Robotics.NXT.Remote,
                        Robotics.NXT.Sensor.Compass,
                        Robotics.NXT.Sensor.Ultrasonic
-  Build-depends:       base >= 4 && < 5,
-                       mtl >= 1.1 && < 2,
+  Build-depends:       base >= 4.3 && < 5,
+                       mtl >= 1.1 && < 3,
                        bytestring >= 0.9 && < 1,
                        unix >= 2.4 && < 3,
                        time >= 1.1 && < 2
@@ -57,19 +57,19 @@ Library
 Executable nxt-shutdown
   Main-is:             Shutdown.hs
   HS-source-dirs:      src
-  Build-depends:       base >= 4 && < 5,
-                       mtl >= 1.1 && < 2,
-                       NXT == 0.1.4
+  Build-depends:       base >= 4.3 && < 5,
+                       mtl >= 1.1 && < 3,
+                       NXT == 0.1.5
   GHC-options:         -Wall
 
 Executable nxt-upload
   Main-is:             UploadFiles.hs
   HS-source-dirs:      src
-  Build-depends:       base >= 4 && < 5,
-                       mtl >= 1.1 && < 2,
+  Build-depends:       base >= 4.3 && < 5,
+                       mtl >= 1.1 && < 3,
                        bytestring >= 0.9 && < 1,
                        filepath >= 1.1 && < 2,
-                       NXT == 0.1.4
+                       NXT == 0.1.5
   GHC-options:         -Wall
   GHC-prof-options:    -Wall
   GHC-shared-options:  -Wall

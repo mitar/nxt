@@ -131,7 +131,7 @@ import Robotics.NXT.Internals
 
 -- TODO: All functions which requests ModuleInfo could populate module ID cache along the way
 -- TODO: Add an optional warning if direction of communication changes
--- TODO: Implement all missing "confirm" versions
+-- TODO: Implement all missing "confirm" versions of functions
 
 -- Foreign function call for C function which initialize serial port device on POSIX systems
 foreign import ccall unsafe "initSerialPort" initSerialPort' :: Fd -> IO CInt
@@ -175,15 +175,14 @@ terminate i = do
   hClose h
   when debug $ hPutStrLn stderr "terminated"
 
--- TODO: Change to mask/restore in GHC 7.0
 {-|
 Function which initializes and terminates Bluetooth connection to the NXT brick (using 'initialize' and 'terminate') and in-between
 runs given computation. It terminates Bluetooth connection on an exception, too, rethrowing it afterwards.
 -}
 withNXT :: FilePath -> NXT a -> IO a
-withNXT device action = block $ do
+withNXT device action = mask $ \restore -> do
   i <- initialize device
-  (r, i') <- unblock (runNXT action i) `onException` terminate i
+  (r, i') <- restore (runNXT action i) `onException` terminate i
   terminate i'
   return r
 
