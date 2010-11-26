@@ -1,9 +1,10 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
 
 module Robotics.NXT.Internals where
 
 import Control.Monad.State
 import Data.Time.Clock.POSIX
+import Data.Typeable
 import System.IO
 
 import Robotics.NXT.Externals
@@ -22,7 +23,7 @@ data NXTInternals = NXTInternals {
     modules :: [(ModuleName, ModuleInfo)], -- modules info
     sleeptime :: Maybe Duration, -- sleep time limit in seconds
     lastkeepalive :: Maybe POSIXTime -- last time keep alive has been sent
-  }
+  } deriving (Typeable)
 
 instance Show NXTInternals where
   show _ = "NXTInternals"
