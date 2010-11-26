@@ -26,7 +26,7 @@ data NXTInternals = NXTInternals {
   } deriving (Typeable)
 
 instance Show NXTInternals where
-  show _ = "NXTInternals"
+  show = show . typeOf
 
 {-|
 Runs a computation in a context of a given 'NXTInternals' token, returning a value and a new token.
