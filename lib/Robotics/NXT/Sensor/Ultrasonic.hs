@@ -219,7 +219,7 @@ usSetActualScaleDivisor input divisor = lowspeedWrite input 0 $ [deviceAddress, 
 
 {-|
 Gets last measurement for a given measurement number based on the current mode. To retrieve new 'SingleShot' measurements first
-use 'usSetMode' (with 'SingleShot' as a parameter) to send new ultrasonic ping and after approximately 20ms read the results. (Change
+use 'usSetMode' (with 'SingleShot' as an argument) to send new ultrasonic ping and after approximately 20ms read the results. (Change
 of NXT Bluetooth communication direction takes around 30 ms.) In 'ContinuousMeasurement' mode new measurements are made automatically
 based on the continuous measurement interval value.
 -}
