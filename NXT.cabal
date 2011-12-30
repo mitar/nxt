@@ -40,6 +40,8 @@ Library
                        time >= 1.1 && < 2,
                        serialport,
                        transformers
+  if os(linux)
+    Build-depends:     unix >= 2.4 && < 3
   Other-modules:       
                        Robotics.NXT.Data,
                        Robotics.NXT.Errors,
