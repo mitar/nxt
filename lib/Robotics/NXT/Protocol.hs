@@ -1,6 +1,3 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# CFILES ffi/initserial.c #-}
-
 module Robotics.NXT.Protocol (
   -- * Initialization
   withNXT,
@@ -102,9 +99,10 @@ module Robotics.NXT.Protocol (
   execNXT
 ) where
 
-import qualified Data.ByteString as B
+--import qualified Data.ByteString as B
 import Control.Exception
 import Control.Monad.State
+import Control.Monad.Trans.Maybe
 import Data.Bits
 import Data.Char
 import Data.List hiding (delete)
@@ -112,12 +110,11 @@ import Data.Maybe
 import Data.Ratio
 import Data.Time.Clock.POSIX
 import Data.Word
-import Foreign.C.Error
-import Foreign.C.Types
+--import Foreign.C.Error
+--import Foreign.C.Types
 import System.IO
-import System.Posix.IO
-import System.Posix.Signals
-import System.Posix.Types
+import System.Hardware.Serialport (openSerial,defaultSerialSettings,sendString ,recvChar,closeSerial,commSpeed ,timeout, CommSpeed(CS19200) )
+--import System.Posix.Types
 import Text.Printf
 
 import Robotics.NXT.Data
@@ -134,10 +131,10 @@ import Robotics.NXT.Internals
 -- TODO: Implement all missing "confirm" versions of functions
 
 -- Foreign function call for C function which initialize serial port device on POSIX systems
-foreign import ccall unsafe "initSerialPort" initSerialPort' :: Fd -> IO CInt
-
-initSerialPort :: Fd -> IO ()
-initSerialPort fd = throwErrnoIfMinus1_ "initSerialPort" $ initSerialPort' fd
+--foreign import ccall unsafe "initSerialPort" initSerialPort' :: Fd -> IO CInt
+--
+--initSerialPort :: Fd -> IO ()
+--initSerialPort fd = throwErrnoIfMinus1_ "initSerialPort" $ initSerialPort' fd
 
 {-|
 Default Bluetooth serial device filename for current operating system. Currently always @\/dev\/rfcomm0@.
@@ -146,23 +143,25 @@ defaultDevice :: FilePath
 defaultDevice = "/dev/rfcomm0"
 
 debug :: Bool
-debug = False
+debug = True
 
 {-|
 Opens and intializes a Bluetooth serial device communication.
 -}
 initialize :: FilePath -> IO NXTInternals
 initialize device = do
-  -- we have to block signals from interrupting openFd system call (fixed in GHC versions after 6.12.1)
-  let signals = foldl (flip addSignal) emptySignalSet [virtualTimerExpired]
-  blockSignals signals
-  fd <- openFd device ReadWrite Nothing OpenFileFlags { append = False, noctty = True, exclusive = False, nonBlock = True, trunc = False }
-  unblockSignals signals
-  initSerialPort fd
-  h <- fdToHandle fd
-  hSetBuffering h NoBuffering
+  s <- openSerial device defaultSerialSettings { commSpeed  = CS19200,timeout=1000 }
+
+--  -- we have to block signals from interrupting openFd system call (fixed in GHC versions after 6.12.1)
+--  let signals = foldl (flip addSignal) emptySignalSet [virtualTimerExpired]
+--  blockSignals signals
+--  fd <- openFd device ReadWrite Nothing OpenFileFlags { append = False, noctty = True, exclusive = False, nonBlock = True, trunc = False }
+--  unblockSignals signals
+--  initSerialPort fd
+--  h <- fdToHandle fd
+--  hSetBuffering h NoBuffering
   when debug $ hPutStrLn stderr "initialized"
-  return $ NXTInternals h Nothing [] Nothing Nothing
+  return $ NXTInternals s Nothing [] Nothing Nothing
 
 {-|
 Stops all NXT activities (by calling 'stopEverything') and closes the Bluetooth serial device communication. 'NXTInternals' token must not
@@ -172,7 +171,7 @@ terminate :: NXTInternals -> IO ()
 terminate i = do
   i' <- execNXT stopEverything i
   let h = nxthandle i'
-  hClose h
+  closeSerial h
   when debug $ hPutStrLn stderr "terminated"
 
 {-|
@@ -193,19 +192,42 @@ sendData message = do
   h <- getsNXT nxthandle
   let len = toUWord . length $ message
       packet = len ++ message
-  liftIO . B.hPut h . B.pack $ packet
+  --liftIO . B.hPut h . B.pack $ packet
+  liftIO $ sendString h $ map (toEnum . fromEnum) packet
   when debug $ liftIO . hPutStrLn stderr $ "sent: " ++ show packet
 
 -- Main function for receiving data from NXT
 receiveData :: NXT [Word8]
 receiveData = do
   h <- getsNXT nxthandle
-  len <- liftIO $ B.hGet h 2
-  let len' = fromUWord . B.unpack $ len
-  packet <- liftIO $ B.hGet h len'
-  let unpacket = B.unpack packet
-  when debug $ liftIO . hPutStrLn stderr $ "received: " ++ show unpacket
-  return unpacket
+  --len <- liftIO $ B.hGet h 2
+  --let len' = fromUWord . B.unpack $ len
+  --packet <- liftIO $ B.hGet h len'
+  --let unpacket = B.unpack packet
+--  unpacket<-liftIO (do
+--        mc1<-recvChar h
+--        case mc1 of
+--                Just c1-> do
+--                        mc2<-recvChar h
+--                        case mc2 of
+--                                Just c2-> do
+--                                       let len' = fromUWord $ map (toEnum . fromEnum) [c1, c2]
+--                                       when debug $ liftIO . hPutStrLn stderr $ "received length: " ++ show len'
+--                                       fs<-mapM (\_->recvChar h) [1..len']
+--                                       return $ map fromJust fs
+--                                Nothing->return ""
+--                Nothing-> return ""        
+--        )
+  unpacket<-runMaybeT $ do
+        c1<-MaybeT $ liftIO $ recvChar h
+        c2<-MaybeT $ liftIO $ recvChar h
+        let len' = fromUWord $ map (toEnum . fromEnum) [c1, c2]
+        when debug $ liftIO . hPutStrLn stderr $ "received length: " ++ show len'
+        fs<-mapM (\_->liftIO $ recvChar h) [1..len']
+        return $ map fromJust fs
+  let ws=map (toEnum . fromEnum) (fromMaybe "" unpacket)
+  when debug $ liftIO . hPutStrLn stderr $ "received: " ++ show ws
+  return ws
 
 {-|
 Gets firmware and protocol versions of the NXT brick.

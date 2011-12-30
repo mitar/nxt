@@ -1,12 +1,13 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# CFILES ffi/blue.c #-}
+{-# LANGUAGE CPP #-}
 
 module Robotics.NXT.BluetoothUtils (
   -- * Bluetooth utils
   -- | `getDeviceInfo` returns zero for Bluetooth signal strength as this is not implemented in current NXT firmware versions. 
   -- Here are functions which retrieve that from a host (computer) Bluetooth stack.
+#ifdef linux_HOST_OS  
   bluetoothRSSI,
   bluetoothLinkQuality
+#endif
 ) where
 
 import Control.Exception
@@ -19,6 +20,7 @@ import Robotics.NXT.Protocol
 import Robotics.NXT.Types
 import Robotics.NXT.Internals
 
+#ifdef linux_HOST_OS
 -- Foreign function call for C function which returns RSSI Bluetooth value of a connection to a given Bluetooth address
 foreign import ccall unsafe "rssi" rssi :: CString -> IO CInt
 
@@ -72,6 +74,7 @@ bluetoothLinkQualityAddr addr = do
       | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
       | ret' == blueNotSupported -> liftIO $ throwIO $ NXTException "Not supported on this system"
       | otherwise                -> return ret'
+#endif
 
 bluetoothAddress :: NXT BTAddress
 bluetoothAddress = do

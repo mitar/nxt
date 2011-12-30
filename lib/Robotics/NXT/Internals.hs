@@ -5,7 +5,7 @@ module Robotics.NXT.Internals where
 import Control.Monad.State
 import Data.Time.Clock.POSIX
 import Data.Typeable
-import System.IO
+import System.Hardware.Serialport (SerialPort)
 
 import Robotics.NXT.Externals
 
@@ -18,7 +18,7 @@ newtype NXT a = NXT (StateT NXTInternals IO a) deriving (Monad, MonadIO, Functor
 A token used for exposed internal functions.
 -}
 data NXTInternals = NXTInternals {
-    nxthandle :: Handle, -- a handle of the opened serial port
+    nxthandle :: SerialPort, -- a handle of the opened serial port
     address :: Maybe BTAddress,
     modules :: [(ModuleName, ModuleInfo)], -- modules info
     sleeptime :: Maybe Duration, -- sleep time limit in seconds

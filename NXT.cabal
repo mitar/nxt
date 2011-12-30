@@ -33,27 +33,30 @@ Library
                        Robotics.NXT.Remote,
                        Robotics.NXT.Sensor.Compass,
                        Robotics.NXT.Sensor.Ultrasonic
-  Build-depends:       base >= 4.3 && < 5,
+  Build-depends:       
+                       base >= 4.3 && < 5,
                        mtl >= 1.1 && < 3,
                        bytestring >= 0.9 && < 1,
-                       unix >= 2.4 && < 3,
-                       time >= 1.1 && < 2
-  Other-modules:       Robotics.NXT.BluetoothUtils,
+                       time >= 1.1 && < 2,
+                       serialport,
+                       transformers
+  Other-modules:       
                        Robotics.NXT.Data,
                        Robotics.NXT.Errors,
                        Robotics.NXT.Protocol,
                        Robotics.NXT.Types,
                        Robotics.NXT.Internals,
-                       Robotics.NXT.Externals
+                       Robotics.NXT.Externals,
+                       Robotics.NXT.BluetoothUtils
   HS-source-dirs:      lib
-  C-sources:           ffi/blue.c,
-                       ffi/initserial.c
-  Includes:            ffi/blue.h,
-                       ffi/initserial.h
   GHC-options:         -Wall
   GHC-prof-options:    -Wall
   GHC-shared-options:  -Wall
   if os(linux)
+    C-sources:           ffi/blue.c,
+                         ffi/initserial.c
+    Includes:            ffi/blue.h,
+                         ffi/initserial.h
     Extra-libraries:   bluetooth
 
 Source-repository head
