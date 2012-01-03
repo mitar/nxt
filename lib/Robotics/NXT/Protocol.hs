@@ -113,7 +113,7 @@ import Data.Word
 --import Foreign.C.Error
 --import Foreign.C.Types
 import System.IO
-import System.Hardware.Serialport (openSerial,defaultSerialSettings,sendString ,recvChar,closeSerial,commSpeed ,timeout, CommSpeed(CS19200) )
+import System.Hardware.Serialport (openSerial,defaultSerialSettings,sendString ,recvChar,closeSerial,commSpeed ,timeout, CommSpeed(CS19200) , flush)
 --import System.Posix.Types
 import Text.Printf
 
@@ -143,7 +143,7 @@ defaultDevice :: FilePath
 defaultDevice = "/dev/rfcomm0"
 
 debug :: Bool
-debug = True
+debug = False
 
 {-|
 Opens and intializes a Bluetooth serial device communication.
