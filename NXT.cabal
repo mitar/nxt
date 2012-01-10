@@ -1,99 +1,97 @@
-name:                NXT
-version:             0.1.9
-synopsis:            A Haskell interface to Lego Mindstorms NXT
-description:         A Haskell interface to Lego Mindstorms NXT over Bluetoooth. It supports direct commands, messages and
+Name:                NXT
+Version:             0.1.9
+Synopsis:            A Haskell interface to Lego Mindstorms NXT
+Description:         A Haskell interface to Lego Mindstorms NXT over Bluetoooth. It supports direct commands, messages and
                      many sensors (also unofficial). It has also support for a simple message-based control of a NXT brick
                      via remotely executed program (basic NXC code included).
-                     
+                     .
                      It contains two simple programs: @nxt-upload@ for uploading files to a NXT brick and @nxt-shutdown@ for
                      remote shutdown of a NXT brick.
-                     
-                     It works best on Linux and it also works on Mac OS X.
-                     
+                     .
+                     It should work on Linux, MacOs and Windows.
+                     .
                      Feel free to contribute additional features, interfaces for more sensors and propose or write other
                      (example) programs.
-license:             LGPL-3
-license-file:        LICENSE
-author:              Mitar Milutinovic
-maintainer:          mitar.haskell@tnode.com
-copyright:           (c) 2010 Mitar Milutinovic
-category:            Robotics
-build-type:          Simple
-cabal-version:       >= 1.8
-stability:           experimental
-homepage:            http://mitar.tnode.com
-extra-source-files:  remote/remote.rxe,
+License:             LGPL-3
+License-file:        LICENSE
+Author:              Mitar Milutinovic
+Maintainer:          mitar.haskell@tnode.com
+Copyright:           (c) 2010 Mitar Milutinovic
+Category:            Robotics
+Build-type:          Simple
+Cabal-version:       >= 1.8
+Stability:           experimental
+Homepage:            http://mitar.tnode.com
+Extra-source-files:  remote/remote.rxe,
                      remote/remote.nxc,
                      ffi/blue.h,
                      ffi/initserial.h
 
-library
-  exposed-modules:     Robotics.NXT,
+Library
+  Exposed-modules:     Robotics.NXT,
                        Robotics.NXT.MotorControl,
                        Robotics.NXT.Remote,
                        Robotics.NXT.Sensor.Compass,
                        Robotics.NXT.Sensor.Ultrasonic
-  build-depends:       base >= 4.3 && < 5,
+  Build-depends:       base >= 4.3 && < 5,
                        mtl >= 1.1 && < 3,
                        bytestring >= 0.9 && < 1,
                        time >= 1.1 && < 2,
                        serialport,
                        transformers
-  other-modules:       Robotics.NXT.Data,
+  Other-modules:       Robotics.NXT.Data,
                        Robotics.NXT.Errors,
                        Robotics.NXT.Protocol,
                        Robotics.NXT.Types,
                        Robotics.NXT.Internals,
                        Robotics.NXT.Externals,
                        Robotics.NXT.BluetoothUtils
-  hs-source-dirs:      lib
-  ghc-options:         -Wall
-  ghc-prof-options:    -Wall
-  ghc-shared-options:  -Wall
+  Hs-source-dirs:      lib
+  Ghc-options:         -Wall
+  Ghc-prof-options:    -Wall
+  Ghc-shared-options:  -Wall
 
   if os(linux)
-    build-depends:  unix >= 2.4 && < 3
+    Build-depends:  unix >= 2.4 && < 3
 
   if os(linux)
-    c-sources:        ffi/blue.c,
+    C-sources:        ffi/blue.c,
                          ffi/initserial.c
-    includes:         ffi/blue.h,
+    Includes:         ffi/blue.h,
                          ffi/initserial.h
-    extra-libraries:  bluetooth
+    Extra-libraries:  bluetooth
 
-source-repository head
-  type:      mercurial
-  location:  https://bitbucket.org/mitar/nxt
+Source-repository head
+  Type:      mercurial
+  Location:  https://bitbucket.org/mitar/nxt
 
-executable nxt-shutdown
-  main-is:         Shutdown.hs
-  hs-source-dirs:  src
-  build-depends:   
-                       base >= 4.3 && < 5,
+Executable nxt-shutdown
+  Main-is:         Shutdown.hs
+  Hs-source-dirs:  src
+  Build-depends:   base >= 4.3 && < 5,
                        mtl >= 1.1 && < 3,
                        NXT,
                        transformers,
                        serialport
-  ghc-options:     -Wall
+  Ghc-options:     -Wall
 
-executable nxt-upload
-  main-is:         UploadFiles.hs
-  hs-source-dirs:  src
-  build-depends:   
-                       base >= 4.3 && < 5,
+Executable nxt-upload
+  Main-is:         UploadFiles.hs
+  Hs-source-dirs:  src
+  Build-depends:   base >= 4.3 && < 5,
                        mtl >= 1.1 && < 3,
                        bytestring >= 0.9 && < 1,
                        filepath >= 1.1 && < 2,
                        NXT,
                        transformers,
                        serialport
-  ghc-options:     -Wall
+  Ghc-options:     -Wall
+
 
 test-suite NXTTests
   type:            exitcode-stdio-1.0
   x-uses-tf:       true
-  build-depends:   
-                   base >= 4,
+  build-depends:   base >= 4,
                    HUnit >= 1.2 && < 2,
                    QuickCheck >= 2.4,
                    test-framework >= 0.4.1,
@@ -107,4 +105,5 @@ test-suite NXTTests
   hs-source-dirs:  test
   main-is:         Main.hs
   other-modules:   Robotics.NXT.Basic
+
 
