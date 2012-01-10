@@ -46,10 +46,10 @@ Library
                        Robotics.NXT.Internals,
                        Robotics.NXT.Externals,
                        Robotics.NXT.BluetoothUtils
-  Hs-source-dirs:      lib
-  Ghc-options:         -Wall
-  Ghc-prof-options:    -Wall
-  Ghc-shared-options:  -Wall
+  HS-source-dirs:      lib
+  GHC-options:         -Wall
+  GHC-prof-options:    -Wall
+  GHC-shared-options:  -Wall
 
   if os(linux)
     Build-depends:  unix >= 2.4 && < 3
@@ -62,22 +62,22 @@ Library
     Extra-libraries:  bluetooth
 
 Source-repository head
-  Type:      mercurial
-  Location:  https://bitbucket.org/mitar/nxt
+  type:      mercurial
+  location:  https://bitbucket.org/mitar/nxt
 
 Executable nxt-shutdown
   Main-is:         Shutdown.hs
-  Hs-source-dirs:  src
+  HS-source-dirs:  src
   Build-depends:   base >= 4.3 && < 5,
                        mtl >= 1.1 && < 3,
                        NXT,
                        transformers,
                        serialport
-  Ghc-options:     -Wall
+  GHC-options:     -Wall
 
 Executable nxt-upload
   Main-is:         UploadFiles.hs
-  Hs-source-dirs:  src
+  HS-source-dirs:  src
   Build-depends:   base >= 4.3 && < 5,
                        mtl >= 1.1 && < 3,
                        bytestring >= 0.9 && < 1,
@@ -85,13 +85,13 @@ Executable nxt-upload
                        NXT,
                        transformers,
                        serialport
-  Ghc-options:     -Wall
+  GHC-options:     -Wall
 
 
-test-suite NXTTests
-  type:            exitcode-stdio-1.0
+Test-suite NXTTests
+  Type:            exitcode-stdio-1.0
   x-uses-tf:       true
-  build-depends:   base >= 4,
+  Build-depends:   base >= 4,
                    HUnit >= 1.2 && < 2,
                    QuickCheck >= 2.4,
                    test-framework >= 0.4.1,
@@ -101,9 +101,9 @@ test-suite NXTTests
                    transformers,
                    serialport,
                    mtl
-  ghc-options:     -Wall -rtsopts
-  hs-source-dirs:  test
-  main-is:         Main.hs
-  other-modules:   Robotics.NXT.Basic
+  GHC-options:     -Wall -rtsopts
+  HS-source-dirs:  test
+  Main-is:         Main.hs
+  Other-modules:   Robotics.NXT.Basic
 
 
