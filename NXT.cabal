@@ -51,10 +51,10 @@ Library
   GHC-prof-options:    -Wall
   GHC-shared-options:  -Wall
 
-  if os(linux)
+  if !os(windows)
     Build-depends:  unix >= 2.4 && < 3
 
-  if os(linux)
+  if !os(windows)
     C-sources:        ffi/blue.c,
                          ffi/initserial.c
     Includes:         ffi/blue.h,
@@ -105,5 +105,4 @@ Test-suite NXTTests
   HS-source-dirs:  test
   Main-is:         Main.hs
   Other-modules:   Robotics.NXT.Basic
-
 
