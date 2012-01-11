@@ -112,7 +112,7 @@ import Data.Time.Clock.POSIX
 import Data.Word
 import System.IO
 import System.Hardware.Serialport hiding (One)
-#ifndef windows_HOST_OS
+#if (!defined(mingw32_HOST_OS) && !defined(windows_HOST_OS))
 import System.Posix.Signals
 #endif
 import Text.Printf
@@ -144,13 +144,13 @@ Opens and intializes a Bluetooth serial device communication.
 -}
 initialize :: FilePath -> IO NXTInternals
 initialize device = do
-#ifndef windows_HOST_OS
+#if (!defined(mingw32_HOST_OS) && !defined(windows_HOST_OS))
   -- we have to block signals from interrupting openFd system call (fixed in GHC versions after 6.12.1)
   let signals = foldl (flip addSignal) emptySignalSet [virtualTimerExpired]
   blockSignals signals
 #endif
   h <- openSerial device defaultSerialSettings { commSpeed = CS115200, timeout = 1000 }
-#ifndef windows_HOST_OS
+#if (!defined(mingw32_HOST_OS) && !defined(windows_HOST_OS))
   unblockSignals signals
 #endif
   when debug $ hPutStrLn stderr "initialized"

@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE ForeignFunctionInterface,CPP #-}
 {-# CFILES ffi/blue.c #-}
 
 module Robotics.NXT.BluetoothUtils (
@@ -19,11 +19,13 @@ import Robotics.NXT.Protocol
 import Robotics.NXT.Types
 import Robotics.NXT.Internals
 
+#ifdef linux_HOST_OS
 -- Foreign function call for C function which returns RSSI Bluetooth value of a connection to a given Bluetooth address
 foreign import ccall unsafe "rssi" rssi :: CString -> IO CInt
 
 -- Foreign function call for C function which returns link quality Bluetooth value of a connection to a given Bluetooth address
 foreign import ccall unsafe "lq" lq :: CString -> IO CInt
+#endif
 
 -- As defined in blue.h
 blueError :: Int
@@ -45,6 +47,7 @@ bluetoothRSSI = do
 
 bluetoothRSSIAddr :: BTAddress -> NXT Int
 bluetoothRSSIAddr addr = do
+#ifdef linux_HOST_OS
   ret <- liftIO $ withCString addr rssi
   let ret' = fromIntegral ret
   case ret' of
@@ -52,6 +55,10 @@ bluetoothRSSIAddr addr = do
       | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
       | ret' == blueNotSupported -> liftIO $ throwIO $ NXTException "Not supported on this system"
       | otherwise                -> return ret'
+#else
+    liftIO $ throwIO $ NXTException "bluetoothRSSIAddr: only supported on Linux"        
+#endif
+    
 
 {-|
 Gets link quality of the Bluetooth connection to the NXT brick.
@@ -65,6 +72,7 @@ bluetoothLinkQuality = do
 
 bluetoothLinkQualityAddr :: BTAddress -> NXT Int
 bluetoothLinkQualityAddr addr = do
+#ifdef linux_HOST_OS
   ret <- liftIO $ withCString addr lq
   let ret' = fromIntegral ret
   case ret' of
@@ -72,6 +80,9 @@ bluetoothLinkQualityAddr addr = do
       | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
       | ret' == blueNotSupported -> liftIO $ throwIO $ NXTException "Not supported on this system"
       | otherwise                -> return ret'
+#else
+    liftIO $ throwIO $ NXTException "bluetoothLinkQualityAddr: only supported on Linux"        
+#endif
 
 bluetoothAddress :: NXT BTAddress
 bluetoothAddress = do
