@@ -5,7 +5,7 @@ module Robotics.NXT.Internals where
 import Control.Monad.State
 import Data.Time.Clock.POSIX
 import Data.Typeable
-import System.Hardware.Serialport (SerialPort)
+import System.Hardware.Serialport
 
 import Robotics.NXT.Externals
 

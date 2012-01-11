@@ -1,8 +1,12 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Robotics.NXT.Externals where
 
+import Control.Exception
 import Data.Int
 import Data.Ratio
 import Data.Time.Clock
+import Data.Typeable
 import Data.Word
 
 -- Described in Lego Mindstorms NXT Bluetooth Developer Kit:
@@ -171,3 +175,7 @@ type ModuleHandle = Int -- unsigned byte
 type IOMapOffset = Int -- unsigned word
 type IOMapLength = Int -- unsigned word
 type IOMapData = [Word8]
+
+-- | Timeout exception for NXT IO operations.
+data TimeoutException = TimoutException deriving (Show, Typeable)
+instance Exception TimeoutException
