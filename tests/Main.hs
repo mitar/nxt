@@ -32,5 +32,5 @@ main = do
 
 tests :: IORef (NXTInternals) -> [Test]
 tests ref = [
-    testGroup "Basic Tests" (concatMap hUnitTestToTests (basicTests ref)),
+    testGroup "Basic Tests" (concatMap hUnitTestToTests (basicTests ref))
   ]
