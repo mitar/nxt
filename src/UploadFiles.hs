@@ -41,7 +41,7 @@ main = do
                        exitWith $ ExitFailure 1
   
   when (Help `elem` opts) $ do
-    putStrLn "Uploads files to a NXT brick.\n"
+    putStrLn "Uploads files to the NXT brick.\n"
     putStrLn usage
     exitWith ExitSuccess
   
