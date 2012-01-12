@@ -71,6 +71,15 @@ Executable nxt-shutdown
   GHC-options:         -Wall
   Default-language:    Haskell2010
 
+Executable nxt-status
+  Main-is:             Status.hs
+  HS-source-dirs:      src
+  Build-depends:       base >= 4.3 && < 5,
+                       mtl >= 1.1 && < 3,
+                       NXT == 0.2.0
+  GHC-options:         -Wall
+  Default-language:    Haskell2010
+
 Executable nxt-upload
   Main-is:             UploadFiles.hs
   HS-source-dirs:      src
