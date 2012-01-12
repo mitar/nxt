@@ -1,20 +1,17 @@
 module Main where
 
+import Control.Exception
+import Control.Monad.Trans ()
+import Data.IORef
+import System.Environment
+
+import Test.Framework
+import Test.Framework.Providers.HUnit
+
 import Robotics.NXT
 import Robotics.NXT.Basic
 
-import Control.Exception
-import Control.Monad.State.Class
-
-import Test.Framework (defaultMainWithArgs, testGroup,Test)
-import Test.Framework.Providers.HUnit
-
-
-import System.Environment ( getArgs)
-import Data.IORef
-import Control.Monad.IO.Class (liftIO)
-
-main :: IO()
+main :: IO ()
 main = do
   (device:args) <- getArgs
   bracket (do
@@ -34,5 +31,6 @@ main = do
 --        )
 
 tests :: IORef (NXTInternals) -> [Test]
-tests ref= [testGroup "Basic Tests" (concatMap hUnitTestToTests (basicTests ref))
-         ]
+tests ref = [
+    testGroup "Basic Tests" (concatMap hUnitTestToTests (basicTests ref)),
+  ]

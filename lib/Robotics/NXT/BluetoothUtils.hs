@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface,CPP #-}
+{-# LANGUAGE ForeignFunctionInterface, CPP #-}
 {-# CFILES ffi/blue.c #-}
 
 module Robotics.NXT.BluetoothUtils (
@@ -32,8 +32,6 @@ blueError :: Int
 blueError = 1000
 blueNotConnected :: Int
 blueNotConnected = 1001
-blueNotSupported :: Int
-blueNotSupported = 1002
 
 {-|
 Gets received signal strength indicator (RSSI) of the Bluetooth connection to the NXT brick.
@@ -53,12 +51,10 @@ bluetoothRSSIAddr addr = do
   case ret' of
     _ | ret' == blueError        -> liftIO $ throwIO $ NXTException "Could not get connection's RSSI"
       | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
-      | ret' == blueNotSupported -> liftIO $ throwIO $ NXTException "Not supported on this system"
       | otherwise                -> return ret'
 #else
-    liftIO $ throwIO $ NXTException "bluetoothRSSIAddr: only supported on Linux"        
+    liftIO $ throwIO $ NXTException "Not supported on this system"
 #endif
-    
 
 {-|
 Gets link quality of the Bluetooth connection to the NXT brick.
@@ -78,10 +74,9 @@ bluetoothLinkQualityAddr addr = do
   case ret' of
     _ | ret' == blueError        -> liftIO $ throwIO $ NXTException "Could not get connection's link quality"
       | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
-      | ret' == blueNotSupported -> liftIO $ throwIO $ NXTException "Not supported on this system"
       | otherwise                -> return ret'
 #else
-    liftIO $ throwIO $ NXTException "bluetoothLinkQualityAddr: only supported on Linux"        
+  liftIO $ throwIO $ NXTException "Not supported on this system"
 #endif
 
 bluetoothAddress :: NXT BTAddress

@@ -6,18 +6,15 @@
 
 // TODO: This works currently only on Linux
 
-#if defined(LINUX) || defined(__linux__)
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
-#endif
 
 #include "blue.h"
 
 // This is not really thread-safe
 bool error;
 
-#if defined(LINUX) || defined(__linux__)
 int findConn(int s, int dev_id, long arg) {
 	struct hci_conn_list_req *cl;
 	struct hci_conn_info *ci;
@@ -49,10 +46,8 @@ int findConn(int s, int dev_id, long arg) {
 	free(cl);
 	return 0;
 }
-#endif
 
 int rssi(char *address) {
-#if defined(LINUX) || defined(__linux__)
 	struct hci_conn_info_req *cr;
 	int8_t rssi;
 	int dd, dev_id;
@@ -103,13 +98,9 @@ int rssi(char *address) {
 	hci_close_dev(dd);
 	
 	return rssi;
-#else
-    return BLUE_NOT_SUPPORTED;
-#endif
 }
 
 int lq(char *address) {
-#if defined(LINUX) || defined(__linux__)
 	struct hci_conn_info_req *cr;
 	uint8_t lq;
 	int dd, dev_id;
@@ -159,7 +150,4 @@ int lq(char *address) {
 	hci_close_dev(dd);
 	
 	return lq;
-#else
-	return BLUE_NOT_SUPPORTED;
-#endif
 }

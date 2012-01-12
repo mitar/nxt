@@ -3,7 +3,6 @@
 
 #define BLUE_ERROR 1000
 #define BLUE_NOT_CONNECTED 1001
-#define BLUE_NOT_SUPPORTED 1002
 
 int rssi(char *address);
 int lq(char *address);
