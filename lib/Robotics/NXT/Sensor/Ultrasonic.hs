@@ -116,7 +116,7 @@ usGetVendorID :: InputPort -> NXT String
 usGetVendorID input = usReadString input 0x08 8
 
 {-|
-Reads vendor ID string (@Sonar@).
+Reads device ID string (@Sonar@).
 -}
 usGetDeviceID :: InputPort -> NXT String
 usGetDeviceID input = usReadString input 0x10 8

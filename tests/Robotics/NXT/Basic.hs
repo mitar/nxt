@@ -1,61 +1,156 @@
 module Robotics.NXT.Basic where
 
-import Robotics.NXT
+import Control.Applicative
+import Control.Monad.State hiding (state, runState)
+import qualified Data.ByteString.Lazy as B
+import Data.IORef
+import Data.Maybe
+import Data.Time.Clock.POSIX
+import System.FilePath
+import System.IO
 import Test.HUnit
 
-import Control.Concurrent (threadDelay)
-import Data.IORef
+import Robotics.NXT
+import Robotics.NXT.Remote
+import Robotics.NXT.Sensor.Ultrasonic
 
 basicTests :: IORef NXTInternals -> [Test]
-basicTests d= map (\x->x d) [testDeviceInfo,testOutputState,testInputMode]
---
+basicTests ref = map (\x -> x ref) [
+    testDeviceInfo,
+    testProgramUpload,
+    testDeviceInit,
+    testOutputState,
+    testInputMode,
+    testUltrasonicSensor
+  ]
 
-delay :: IO()
-delay =threadDelay $ 1000000 * 30
+keepAliveAfter :: Int
+keepAliveAfter = 4 * 60 -- 4 minutes (in seconds)
 
-testNXT :: IORef NXTInternals ->  NXT a -> IO a
-testNXT ref f=do
-        i<-readIORef ref
-        (a,i')<-runNXT f i
-        writeIORef ref i'
-        return a
+-- Maybe sends a keep alive packet - if more than keepAliveAfter seconds passed from a previous one
+maybeKeepAlive :: NXT ()
+maybeKeepAlive = do
+  lka <- getLastKeepAliveTime
+  let lka' = fromMaybe 0 lka
+  current <- liftIO getPOSIXTime
+  if current - lka' > fromIntegral keepAliveAfter
+    then keepAlive
+    else return () -- it is not yet time to send a keep alive packet
 
+testNXT :: IORef NXTInternals -> NXT a -> IO a
+testNXT ref t = do
+  let t' = do r <- t
+              maybeKeepAlive
+              return r
+  nxt <- readIORef ref
+  (res, nxt') <- runNXT t' nxt
+  writeIORef ref nxt'
+  return res
 
 testDeviceInfo :: IORef NXTInternals -> Test
-testDeviceInfo ref= TestLabel "testDeviceInfo" (TestCase (do
-        (DeviceInfo name address _ _)<-testNXT ref getDeviceInfo
-        assertBool "empty name" (not $ null name)
-        putStrLn ("NXT Name: "++name)
-        assertBool "empty address" (not $ null address)
-        putStrLn ("NXT Address: "++address)
-        ))
-        
+testDeviceInfo ref = TestLabel "testDeviceInfo" $ TestCase $ do
+  (DeviceInfo name address _ _) <- testNXT ref getDeviceInfo
+  assertBool "empty name" (not $ null name)
+  putStrLn $ "NXT Name: " ++ name
+  assertBool "empty address" (not $ null address)
+  putStrLn $ "NXT Address: " ++ address
+
+remoteProgramFilename :: String
+remoteProgramFilename = "remote/remote.nxc"
+
+testProgramUpload :: IORef NXTInternals -> Test
+testProgramUpload ref = TestLabel "testProgramUpload" $ TestCase $ do
+  testNXT ref $ do
+    stopProgramConfirm
+    h <- liftIO $ openBinaryFile remoteProgramFilename ReadMode
+    size <- liftIO $ hFileSize h
+    content <- liftIO $ B.unpack <$> B.hGetContents h
+    let filename = takeFileName remoteProgramFilename
+    deleteConfirm filename
+    h' <- openWrite filename (fromIntegral size)
+    mapM_ (write h') $ chunk 61 content
+    close h'
+  where chunk _ [] = [[]]
+        chunk n xs = y1 : chunk n y2
+          where (y1, y2) = splitAt n xs
+
+testDeviceInit :: IORef NXTInternals -> Test
+testDeviceInit ref = TestLabel "testDeviceInit" $ TestCase $ do
+  testNXT ref $ do
+    startRemoteProgram
+    mapM_ resetInputScaledValue [One ..]
+    mapM_ (`resetMotorPosition` AbsolutePosition) [A ..]
+    mapM_ (`resetMotorPosition` RelativePosition) [A ..]
+    mapM_ (`resetMotorPosition` InternalPosition) [A ..]
+    setOutputStateConfirm A 0 [MotorOn, Brake] RegulationModeIdle 0 MotorRunStateRunning 0
+    setOutputStateConfirm B 0 [MotorOn, Brake] RegulationModeIdle 0 MotorRunStateRunning 0
+    setOutputStateConfirm C 0 [MotorOn, Brake] RegulationModeIdle 0 MotorRunStateRunning 0
+
+waitfor :: NXT (Bool, Int) -> NXT Bool
+waitfor cond = waitfor' []
+  where window        = 6
+        allowed       = 10
+        waitfor' prev = do
+          (c, r) <- cond
+          let prev'  = take window $ (abs r):prev
+              prev'' = derive $ prev'
+              speed  = (sum prev'') `div` (length prev'')
+          if c
+            then return True
+            else if length prev' < window
+                   then waitfor' prev'
+                   else if speed < allowed -- speed should not fall under allowed threshold
+                          then return False
+                          else waitfor' prev'
+          where derive xs = zipWith (-) xs (tail xs) -- xs is a reversed list
+
 testOutputState :: IORef NXTInternals -> Test
-testOutputState ref= TestLabel "testOutputState" (TestCase (do
-       (OutputState port power modes reg ratio _ limit count _ _) <- testNXT ref (do
-                setOutputStateConfirm A 75 [MotorOn,Brake] RegulationModeMotorSpeed 0 MotorRunStateRunning 360
-                getOutputState A
-                )
-       assertEqual "not A port" A port
-       assertEqual "not 75 power" 75 power
-       assertEqual "not modes" [MotorOn,Brake] modes
-       assertEqual "not regulation" RegulationModeMotorSpeed reg
-       assertEqual "not 0 ratio" 0 ratio
-       assertEqual "not 360 limit" 360 limit
-       assertBool "count>0" (count>0)
-       ))
-       
+testOutputState ref = TestLabel "testOutputState" $ TestCase $ do
+  testNXT ref $ do
+    setOutputStateConfirm A 75 [MotorOn, Brake, Regulated] RegulationModeMotorSpeed 0 MotorRunStateRunning 1000
+    successful <- waitfor $ do
+      OutputState _ _ _ _ _ state _ _ tachoCount _ <- getOutputState A
+      return (state == MotorRunStateIdle, fromIntegral tachoCount)
+    setOutputStateConfirm A 0 [MotorOn, Brake] RegulationModeIdle 0 MotorRunStateRunning 0
+    liftIO $ assertBool "not successful waitfor" successful
+    OutputState outputPort outputPower outputMode regulationMode turnRatio runState tachoLimit tachoCount _ _ <- getOutputState A
+    liftIO $ do
+      assertEqual "not A outputPort" A outputPort
+      assertEqual "not 0 outputPower" 0 outputPower
+      assertEqual "not outputMode" [MotorOn, Brake] outputMode
+      assertEqual "not regulationMode" RegulationModeIdle regulationMode
+      assertEqual "not 0 turnRatio" 0 turnRatio
+      assertEqual "not runState" MotorRunStateRunning runState
+      assertEqual "not 0 tachoLimit" 0 tachoLimit
+      assertBool "not tachoCount ~ 1000" (tachoCount > 900 && tachoCount < 1100)
+
 testInputMode :: IORef NXTInternals -> Test
-testInputMode ref= TestLabel "testInputMode" (TestCase (do
-        InputValue port valid calibrated stype smode _ normV scalV _<-testNXT ref (do
-                setInputModeConfirm One Switch BooleanMode
-                getInputValues One
-                )
-        assertEqual "not port 1" One port
-        assertBool "not valid" valid
-        assertBool "calibrated" (not calibrated)
-        assertEqual "not switch" Switch stype
-        assertEqual "not boolean" BooleanMode smode
-        assertBool "normalized not in range" (normV>=0 && normV<1024)
-        assertEqual "scaled not 0" 0 scalV
-        ))
+testInputMode ref = TestLabel "testInputMode" $ TestCase $ do
+  InputValue inputPort valid _ sensorType sensorMode _ normalizedADValue scaledValue _ <- testNXT ref $ do
+    setInputModeConfirm One Switch BooleanMode
+    getInputValues One
+  assertEqual "not 1 inputPort" One inputPort
+  assertBool "not valid" valid
+  assertEqual "not sensorType" Switch sensorType
+  assertEqual "not sensorMode" BooleanMode sensorMode
+  assertBool "not in range normalizedADValue" (normalizedADValue >= 0 && normalizedADValue <= 1023)
+  assertEqual "not 0 scaledValue" 0 scaledValue
+
+testUltrasonicSensor :: IORef NXTInternals -> Test
+testUltrasonicSensor ref = TestLabel "testUltrasonicSensor" $ TestCase $ do
+  measurement <- testNXT ref $ do
+    usInit Two
+    version <- usGetVersion Two
+    liftIO $ assertEqual "not V1.0 version" "V1.0" version
+    vendor <- usGetVendorID Two
+    liftIO $ assertEqual "not LEGO vendor" "LEGO" vendor
+    device <- usGetDeviceID Two
+    liftIO $ assertEqual "not Sonar device" "Sonar" device
+    units <- usGetMeasurementUnits Two
+    liftIO $ assertEqual "not 10E-2m units" "10E-2m" units
+    usSetMode Two SingleShot
+    mode <- usGetMode Two
+    liftIO $ assertEqual "not mode" SingleShot mode
+    usGetMeasurement Two 0
+  putStrLn $ "Ultrasonic sensor measurement: " ++ (show measurement)
+
