@@ -67,6 +67,7 @@ uploadFiles args = do
             h' <- openWrite filename (fromIntegral size)
             mapM_ (write h') $ chunk 61 content
             close h'
+            liftIO $ putStrLn "Done."
           chunk _ [] = [[]]
           chunk n xs = y1 : chunk n y2
             where (y1, y2) = splitAt n xs

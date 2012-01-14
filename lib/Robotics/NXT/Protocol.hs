@@ -101,6 +101,7 @@ module Robotics.NXT.Protocol (
   execNXT
 ) where
 
+import qualified Data.ByteString as B
 import Control.Exception
 import Control.Monad.State
 import Data.Bits
@@ -111,7 +112,7 @@ import Data.Ratio
 import Data.Time.Clock.POSIX
 import Data.Word
 import System.IO
-import System.Hardware.Serialport hiding (One)
+import qualified System.Hardware.Serialport as S
 #if (!defined(mingw32_HOST_OS) && !defined(windows_HOST_OS))
 import System.Posix.Signals
 #endif
@@ -149,7 +150,7 @@ initialize device = do
   let signals = foldl (flip addSignal) emptySignalSet [virtualTimerExpired]
   blockSignals signals
 #endif
-  h <- openSerial device defaultSerialSettings { commSpeed = CS115200, timeout = 1000 }
+  h <- S.openSerial device S.defaultSerialSettings { S.commSpeed = S.CS115200, S.timeout = 1000 }
 #if (!defined(mingw32_HOST_OS) && !defined(windows_HOST_OS))
   unblockSignals signals
 #endif
@@ -164,7 +165,7 @@ terminate :: NXTInternals -> IO ()
 terminate i = do
   i' <- execNXT stopEverything i
   let h = nxthandle i'
-  closeSerial h
+  S.closeSerial h
   when debug $ hPutStrLn stderr "terminated"
 
 {-|
@@ -185,26 +186,20 @@ sendData message = do
   h <- getsNXT nxthandle
   let len = toUWord . length $ message
       packet = len ++ message
-  liftIO $ sendString h $ map (toEnum . fromEnum) packet
+  n <- liftIO . S.send h . B.pack $ packet
+  when (n /= length packet) $ liftIO $ failNXT' "not all data has been send"
   when debug $ liftIO . hPutStrLn stderr $ "sent: " ++ show packet
 
 -- Main function for receiving data from NXT
 receiveData :: NXT [Word8]
 receiveData = do
   h <- getsNXT nxthandle
-  let hChar :: IO Word8
-      hChar = do
-        c <- recvChar h
-        case c of
-          Just c' -> return $ toEnum . fromEnum $ c'
-          Nothing -> throwIO TimoutException
-      hGet :: Int -> IO [Word8]
-      hGet l = replicateM l hChar
-  len <- liftIO $ hGet 2
-  let len' = fromUWord len
-  packet <- liftIO $ hGet len'
-  when debug $ liftIO . hPutStrLn stderr $ "received: " ++ show packet
-  return packet
+  len <- liftIO $ S.recv h 2
+  let len' = fromUWord . B.unpack $ len
+  packet <- liftIO $ S.recv h len'
+  let unpacket = B.unpack packet
+  when debug $ liftIO . hPutStrLn stderr $ "received: " ++ show unpacket
+  return unpacket
 
 {-|
 Gets firmware and protocol versions of the NXT brick.
@@ -675,7 +670,7 @@ keepAlive' confirm = do
   when debug $ liftIO . hPutStrLn stderr $ "keepalive"
   current <- liftIO getPOSIXTime
   modifyNXT (\s -> s { lastkeepalive = Just current })
-  let send = [0x00, 0x0D]
+  let send = [request confirm, 0x0D]
   sendData send
   if confirm
     then do

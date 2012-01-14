@@ -50,9 +50,9 @@ testNXT ref t = do
 testDeviceInfo :: IORef NXTInternals -> Test
 testDeviceInfo ref = TestLabel "testDeviceInfo" $ TestCase $ do
   (DeviceInfo name address _ _) <- testNXT ref getDeviceInfo
-  assertBool "empty name" (not $ null name)
+  assertBool "name" (not . null $ name)
   putStrLn $ "NXT Name: " ++ name
-  assertBool "empty address" (not $ null address)
+  assertBool "address" (not . null $ address)
   putStrLn $ "NXT Address: " ++ address
 
 remoteProgramFilename :: String
@@ -115,42 +115,46 @@ testOutputState ref = TestLabel "testOutputState" $ TestCase $ do
     liftIO $ assertBool "not successful waitfor" successful
     OutputState outputPort outputPower outputMode regulationMode turnRatio runState tachoLimit tachoCount _ _ <- getOutputState A
     liftIO $ do
-      assertEqual "not A outputPort" A outputPort
-      assertEqual "not 0 outputPower" 0 outputPower
-      assertEqual "not outputMode" [MotorOn, Brake] outputMode
-      assertEqual "not regulationMode" RegulationModeIdle regulationMode
-      assertEqual "not 0 turnRatio" 0 turnRatio
-      assertEqual "not runState" MotorRunStateRunning runState
-      assertEqual "not 0 tachoLimit" 0 tachoLimit
-      assertBool "not tachoCount ~ 1000" (tachoCount > 900 && tachoCount < 1100)
+      assertEqual "outputPort" A outputPort
+      assertEqual "outputPower" 0 outputPower
+      assertEqual "outputMode" [MotorOn, Brake] outputMode
+      assertEqual "regulationMode" RegulationModeIdle regulationMode
+      assertEqual "turnRatio" 0 turnRatio
+      assertEqual "runState" MotorRunStateRunning runState
+      assertEqual "tachoLimit" 0 tachoLimit
+      assertBool ("tachoCount !~ 1000: " ++ show tachoCount) (tachoCount > 700 && tachoCount < 1300)
 
 testInputMode :: IORef NXTInternals -> Test
 testInputMode ref = TestLabel "testInputMode" $ TestCase $ do
   InputValue inputPort valid _ sensorType sensorMode _ normalizedADValue scaledValue _ <- testNXT ref $ do
     setInputModeConfirm One Switch BooleanMode
     getInputValues One
-  assertEqual "not 1 inputPort" One inputPort
+  assertEqual "inputPort" One inputPort
   assertBool "not valid" valid
-  assertEqual "not sensorType" Switch sensorType
-  assertEqual "not sensorMode" BooleanMode sensorMode
-  assertBool "not in range normalizedADValue" (normalizedADValue >= 0 && normalizedADValue <= 1023)
-  assertEqual "not 0 scaledValue" 0 scaledValue
+  assertEqual "sensorType" Switch sensorType
+  assertEqual "sensorMode" BooleanMode sensorMode
+  assertBool ("normalizedADValue not in range [0, 1023]: " ++ show normalizedADValue) (normalizedADValue >= 0 && normalizedADValue <= 1023)
+  assertEqual "scaledValue" 0 scaledValue
 
 testUltrasonicSensor :: IORef NXTInternals -> Test
 testUltrasonicSensor ref = TestLabel "testUltrasonicSensor" $ TestCase $ do
   measurement <- testNXT ref $ do
     usInit Two
     version <- usGetVersion Two
-    liftIO $ assertEqual "not V1.0 version" "V1.0" version
+    liftIO $ assertEqual "version" "V1.0" version
     vendor <- usGetVendorID Two
-    liftIO $ assertEqual "not LEGO vendor" "LEGO" vendor
+    liftIO $ assertEqual "vendor" "LEGO" vendor
     device <- usGetDeviceID Two
-    liftIO $ assertEqual "not Sonar device" "Sonar" device
+    liftIO $ assertEqual "device" "Sonar" device
     units <- usGetMeasurementUnits Two
-    liftIO $ assertEqual "not 10E-2m units" "10E-2m" units
-    usSetMode Two SingleShot
+    liftIO $ assertEqual "units" "10E-2m" units
+    usSetMode Two ContinuousMeasurement
     mode <- usGetMode Two
-    liftIO $ assertEqual "not mode" SingleShot mode
-    usGetMeasurement Two 0
+    liftIO $ assertEqual "mode" ContinuousMeasurement mode
+    usSetMode Two SingleShot
+    measurement <- usGetMeasurement Two 0
+    usSetMode Two Off
+    mode' <- usGetMode Two
+    liftIO $ assertEqual "mode" Off mode'
+    return measurement
   putStrLn $ "Ultrasonic sensor measurement: " ++ (show measurement)
-
