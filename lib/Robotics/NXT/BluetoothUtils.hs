@@ -11,8 +11,10 @@ module Robotics.NXT.BluetoothUtils (
 
 import Control.Exception
 import Control.Monad.State
+#ifdef linux_HOST_OS
 import Foreign.C.String
 import Foreign.C.Types
+#endif
 
 import Robotics.NXT.Errors
 import Robotics.NXT.Protocol
@@ -25,13 +27,13 @@ foreign import ccall unsafe "rssi" rssi :: CString -> IO CInt
 
 -- Foreign function call for C function which returns link quality Bluetooth value of a connection to a given Bluetooth address
 foreign import ccall unsafe "lq" lq :: CString -> IO CInt
-#endif
 
 -- As defined in blue.h
 blueError :: Int
 blueError = 1000
 blueNotConnected :: Int
 blueNotConnected = 1001
+#endif
 
 {-|
 Gets received signal strength indicator (RSSI) of the Bluetooth connection to the NXT brick.
@@ -44,8 +46,8 @@ bluetoothRSSI = do
   bluetoothRSSIAddr addr
 
 bluetoothRSSIAddr :: BTAddress -> NXT Int
-bluetoothRSSIAddr addr = do
 #ifdef linux_HOST_OS
+bluetoothRSSIAddr addr = do
   ret <- liftIO $ withCString addr rssi
   let ret' = fromIntegral ret
   case ret' of
@@ -53,6 +55,7 @@ bluetoothRSSIAddr addr = do
       | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
       | otherwise                -> return ret'
 #else
+bluetoothRSSIAddr _ = do
     liftIO $ throwIO $ NXTException "Not supported on this system"
 #endif
 
@@ -67,8 +70,8 @@ bluetoothLinkQuality = do
   bluetoothLinkQualityAddr addr
 
 bluetoothLinkQualityAddr :: BTAddress -> NXT Int
-bluetoothLinkQualityAddr addr = do
 #ifdef linux_HOST_OS
+bluetoothLinkQualityAddr addr = do
   ret <- liftIO $ withCString addr lq
   let ret' = fromIntegral ret
   case ret' of
@@ -76,6 +79,7 @@ bluetoothLinkQualityAddr addr = do
       | ret' == blueNotConnected -> liftIO $ throwIO $ NXTException "Connection not established"
       | otherwise                -> return ret'
 #else
+bluetoothLinkQualityAddr _ = do
   liftIO $ throwIO $ NXTException "Not supported on this system"
 #endif
 

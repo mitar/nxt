@@ -49,7 +49,7 @@ main = do
 
   let Device device = fromMaybe (Device defaultDevice) . find isDevice $ opts
 
-  putStrLn "Please connect a motor to port A, a swich sensor to port 1, an ultrasonic sensor to port 2, and press enter key to continue."
+  putStrLn "Please connect a motor to port A, a switch sensor to port 1, an ultrasonic sensor to port 2, and press enter key to continue."
 
   _ <- try getLine :: IO (Either IOException String)
 
