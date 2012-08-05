@@ -74,30 +74,30 @@ intToData x    = unfoldr getByte x
   where getByte 0x00 = Nothing
         getByte y    = Just (fromIntegral $ y `mod` 0x100, y `div` 0x100)
 
-toUByte :: Integral a => a -> [Word8] -- one byte, unsigned
+toUByte :: (Show a, Integral a) => a -> [Word8] -- one byte, unsigned
 toUByte x | x >= 0x00 && x <= 0xFF = intToData x
           | otherwise              = throw . PatternMatchFail $ "toUByte: " ++ show x
 
-toUWord :: Integral a => a -> [Word8] -- two bytes, unsigned, least significant byte first
+toUWord :: (Show a, Integral a) => a -> [Word8] -- two bytes, unsigned, least significant byte first
 toUWord x | x >= 0x00 && x <= 0xFFFF = take 2 . flip (++) (repeat 0x00) . intToData $ x
           | otherwise                = throw . PatternMatchFail $ "toUWord: " ++ show x
 
-toULong :: Integral a => a -> [Word8] -- four bytes, unsigned, least significant byte first
+toULong :: (Show a, Integral a) => a -> [Word8] -- four bytes, unsigned, least significant byte first
 toULong x | x' >= 0x00 && x' <= 0xFFFFFFFF = take 4 . flip (++) (repeat 0x00) . intToData $ x'
           | otherwise                      = throw . PatternMatchFail $ "toULong: " ++ show x
   where x' = fromIntegral x :: Integer
 
-toSByte :: Integral a => a -> [Word8] -- one byte, signed
+toSByte :: (Show a, Integral a) => a -> [Word8] -- one byte, signed
 toSByte x | x >= (-0x80) && x < 0x00 = intToData $ 0x100 + x
           | x >= 0x00 && x <= 0x7F   = intToData x
           | otherwise                = throw . PatternMatchFail $ "toSByte: " ++ show x
 
-toSWord :: Integral a => a -> [Word8] -- two bytes, signed, least significant byte first
+toSWord :: (Show a, Integral a) => a -> [Word8] -- two bytes, signed, least significant byte first
 toSWord x | x >= (-0x8000) && x < 0x00 = take 2 . flip (++) (repeat 0x00) . intToData $ 0x10000 + x
           | x >= 0x00 && x <= 0x7FFF   = take 2 . flip (++) (repeat 0x00) . intToData $ x
           | otherwise                  = throw . PatternMatchFail $ "toSWord: " ++ show x
 
-toSLong :: Integral a => a -> [Word8] -- four bytes, signed, least significant byte first
+toSLong :: (Show a, Integral a) => a -> [Word8] -- four bytes, signed, least significant byte first
 toSLong x | x' >= (-0x80000000) && x' < 0x00 = take 4 . flip (++) (repeat 0x00) . intToData $ 0x100000000 + x'
           | x' >= 0x00 && x' <= 0x7FFFFFFF   = take 4 . flip (++) (repeat 0x00) . intToData $ x'
           | otherwise                        = throw . PatternMatchFail $ "toSLong: " ++ show x
