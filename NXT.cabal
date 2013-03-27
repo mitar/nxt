@@ -1,5 +1,5 @@
 Name:                NXT
-Version:             0.2.2
+Version:             0.2.3
 Synopsis:            A Haskell interface to Lego Mindstorms NXT
 Description:         A Haskell interface to Lego Mindstorms NXT over Bluetoooth. It supports direct commands, messages and
                      many sensors (also unofficial). It has also support for a simple message-based control of a NXT brick
@@ -16,7 +16,7 @@ License:             LGPL-3
 License-file:        LICENSE
 Author:              Mitar Milutinovic
 Maintainer:          mitar.haskell@tnode.com
-Copyright:           (c) 2011-2012 Mitar Milutinovic
+Copyright:           (c) 2011-2013 Mitar Milutinovic
 Category:            Robotics
 Build-type:          Simple
 Cabal-version:       >= 1.10
@@ -61,15 +61,15 @@ Library
     Extra-libraries:   bluetooth
 
 Source-repository head
-  type:                mercurial
-  location:            https://bitbucket.org/mitar/nxt
+  type:                git
+  location:            git://github.com/mitar/nxt.git
 
 Executable nxt-shutdown
   Main-is:             Shutdown.hs
   HS-source-dirs:      src
   Build-depends:       base >= 4.3 && < 5,
                        mtl >= 1.1 && < 3,
-                       NXT == 0.2.2
+                       NXT == 0.2.3
   GHC-options:         -Wall
   Default-language:    Haskell2010
 
@@ -78,7 +78,7 @@ Executable nxt-status
   HS-source-dirs:      src
   Build-depends:       base >= 4.3 && < 5,
                        mtl >= 1.1 && < 3,
-                       NXT == 0.2.2
+                       NXT == 0.2.3
   GHC-options:         -Wall
   Default-language:    Haskell2010
 
@@ -89,7 +89,7 @@ Executable nxt-upload
                        mtl >= 1.1 && < 3,
                        bytestring >= 0.9 && < 1,
                        filepath >= 1.1 && < 2,
-                       NXT == 0.2.2
+                       NXT == 0.2.3
   GHC-options:         -Wall
   Default-language:    Haskell2010
 
@@ -106,7 +106,7 @@ Test-suite nxt-tests
                        time >= 1.2 && < 2,
                        bytestring >= 0.9 && < 1.0,
                        filepath >= 1.2 && < 2,
-                       NXT == 0.2.2
+                       NXT == 0.2.3
   GHC-options:         -Wall -rtsopts
   Default-language:    Haskell2010
   HS-source-dirs:      tests
