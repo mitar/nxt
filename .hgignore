@@ -1,6 +1,0 @@
-syntax: regexp
-^dist
-syntax: glob
-*.o
-*.hi
-.*
