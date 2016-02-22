@@ -34,11 +34,11 @@ Library
                        Robotics.NXT.Remote,
                        Robotics.NXT.Sensor.Compass,
                        Robotics.NXT.Sensor.Ultrasonic
-  Build-depends:       base >= 4.3 && < 5,
-                       mtl >= 1.1 && < 3,
-                       bytestring >= 0.9 && < 1,
-                       time >= 1.1 && < 2,
-                       serialport >= 0.4.3 && < 1
+  Build-depends:       base,
+                       mtl,
+                       bytestring,
+                       time,
+                       serialport
   Other-modules:       Robotics.NXT.Data,
                        Robotics.NXT.Errors,
                        Robotics.NXT.Protocol,
@@ -53,7 +53,7 @@ Library
   Default-language:    Haskell2010
 
   if !os(windows)
-    Build-depends:     unix >= 2.4 && < 3
+    Build-depends:     unix
 
   if os(linux)
     C-sources:         ffi/blue.c
@@ -67,46 +67,46 @@ Source-repository head
 Executable nxt-shutdown
   Main-is:             Shutdown.hs
   HS-source-dirs:      src
-  Build-depends:       base >= 4.3 && < 5,
-                       mtl >= 1.1 && < 3,
-                       NXT == 0.2.3
+  Build-depends:       base,
+                       mtl,
+                       NXT
   GHC-options:         -Wall
   Default-language:    Haskell2010
 
 Executable nxt-status
   Main-is:             Status.hs
   HS-source-dirs:      src
-  Build-depends:       base >= 4.3 && < 5,
-                       mtl >= 1.1 && < 3,
-                       NXT == 0.2.3
+  Build-depends:       base,
+                       mtl,
+                       NXT
   GHC-options:         -Wall
   Default-language:    Haskell2010
 
 Executable nxt-upload
   Main-is:             UploadFiles.hs
   HS-source-dirs:      src
-  Build-depends:       base >= 4.3 && < 5,
-                       mtl >= 1.1 && < 3,
-                       bytestring >= 0.9 && < 1,
-                       filepath >= 1.1 && < 2,
-                       NXT == 0.2.3
+  Build-depends:       base,
+                       mtl,
+                       bytestring,
+                       filepath,
+                       NXT
   GHC-options:         -Wall
   Default-language:    Haskell2010
 
 Test-suite nxt-tests
   Type:                exitcode-stdio-1.0
   X-uses-tf:           true
-  Build-depends:       base >= 4,
-                       HUnit >= 1.2 && < 2,
-                       QuickCheck >= 2.4 && < 3,
-                       test-framework >= 0.4 && < 1,
-                       test-framework-quickcheck2 >= 0.2 && < 1,
-                       test-framework-hunit >= 0.2 && < 1,
-                       mtl >= 1.1 && < 3,
-                       time >= 1.2 && < 2,
-                       bytestring >= 0.9 && < 1.0,
-                       filepath >= 1.2 && < 2,
-                       NXT == 0.2.3
+  Build-depends:       base,
+                       HUnit,
+                       QuickCheck,
+                       test-framework,
+                       test-framework-quickcheck2,
+                       test-framework-hunit,
+                       mtl,
+                       time,
+                       bytestring,
+                       filepath,
+                       NXT
   GHC-options:         -Wall -rtsopts
   Default-language:    Haskell2010
   HS-source-dirs:      tests

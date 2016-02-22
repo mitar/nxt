@@ -1,0 +1,13 @@
+resolver: lts-5.3
+
+packages:
+- '.'
+
+extra-deps:
+- serialport-0.4.7
+- text-1.2.2.0
+
+flags: {}
+
+extra-package-dbs: []
+
