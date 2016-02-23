@@ -2,7 +2,6 @@ module Main (
   main
 ) where
 
-import Control.Applicative
 import Control.Monad.State
 import qualified Data.ByteString.Lazy as B
 import Data.Maybe

@@ -1,6 +1,5 @@
 module Robotics.NXT.Basic where
 
-import Control.Applicative
 import Control.Monad.State hiding (state, runState)
 import qualified Data.ByteString.Lazy as B
 import Data.IORef

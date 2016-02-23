@@ -39,7 +39,6 @@ module Robotics.NXT.Sensor.Ultrasonic (
   MeasurementNumber
 ) where
 
-import Control.Applicative
 import Control.Exception
 import Control.Monad
 import Control.Monad.Trans
