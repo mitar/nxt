@@ -1,5 +1,5 @@
 Name:                NXT
-Version:             0.2.3
+Version:             0.2.4
 Synopsis:            A Haskell interface to Lego Mindstorms NXT
 Description:         A Haskell interface to Lego Mindstorms NXT over Bluetoooth. It supports direct commands, messages and
                      many sensors (also unofficial). It has also support for a simple message-based control of a NXT brick
