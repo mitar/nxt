@@ -75,7 +75,7 @@ isMotorReady :: [OutputPort] -> NXT [Bool]
 isMotorReady ports = do
   mapM_ (\port -> motorControlSend $ '3' : port) ports''
   liftIO $ threadDelay (10 * 1000) -- 10 ms
-  replies <- mapM (\_ -> motorControlReceive) ports''
+  replies <- mapM (const motorControlReceive) ports''
   liftIO $ threadDelay (10 * 1000) -- 10 ms
   let replies' = map ready replies
   return $ map (fromJust . (`lookup` replies')) ports'

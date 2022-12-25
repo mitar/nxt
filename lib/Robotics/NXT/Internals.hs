@@ -12,7 +12,7 @@ import Robotics.NXT.Externals
 {-|
 Monad which encompasses interface to the NXT brick.
 -}
-newtype NXT a = NXT (StateT NXTInternals IO a) deriving (Monad, Applicative, MonadIO, Functor, MonadFix) -- NXT monad
+newtype NXT a = NXT (StateT NXTInternals IO a) deriving (Monad, Applicative, MonadIO, Functor, MonadFix, MonadFail) -- NXT monad
 
 {-|
 A token used for exposed internal functions.
