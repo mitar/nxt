@@ -654,7 +654,7 @@ Sends a keep alive (turned on) packet. It prevents the NXT brick from automatica
 from hapenning so it is useful to send this packet from time to time if you want to prevent powering off.
 -}
 keepAlive :: NXT ()
-keepAlive = keepAlive' False >> return ()
+keepAlive = void $ keepAlive' False 
 
 {-|
 Same as 'keepAlive' but also request a confirmation. Useful to assure the command was really accepted. In a case of an error it
@@ -663,7 +663,7 @@ throws a 'NXTException'.
 Confirmation requires a change of the direction of NXT Bluetooth communication which takes around 30 ms. 
 -}
 keepAliveConfirm :: NXT ()
-keepAliveConfirm = keepAlive' True >> return ()
+keepAliveConfirm = void $ keepAlive' True
 
 keepAlive' :: Bool -> NXT Duration
 keepAlive' confirm = do

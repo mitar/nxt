@@ -32,9 +32,7 @@ maybeKeepAlive = do
   lka <- getLastKeepAliveTime
   let lka' = fromMaybe 0 lka
   current <- liftIO getPOSIXTime
-  if current - lka' > fromIntegral keepAliveAfter
-    then keepAlive
-    else return () -- it is not yet time to send a keep alive packet
+  when (current - lka' > fromIntegral keepAliveAfter) keepAlive -- it time to send a keep alive packet
 
 testNXT :: IORef NXTInternals -> NXT a -> IO a
 testNXT ref t = do

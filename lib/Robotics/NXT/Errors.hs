@@ -60,6 +60,6 @@ failNXT' msg = throwIO . NXTException $ msg
 {-|
 Exception for NXT interface errors. Currently only one exception is defined which takes textual description as an argument.
 -}
-data NXTException = NXTException String deriving (Show, Typeable)
+newtype NXTException = NXTException String deriving (Show, Typeable)
 
 instance Exception NXTException
